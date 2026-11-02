@@ -1,0 +1,18 @@
+{
+  "name": "neverquest",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "A local ledger companion for Monsters & Memories",
+  "type": "module",
+  "main": "src/main.mjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test --experimental-test-isolation=none",
+    "check": "node scripts/check.mjs",
+    "check:public": "node scripts/check-public-files.mjs",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "engines": { "node": ">=22.12.0" },
+  "devDependencies": { "electron": "45.2.1" }
+}

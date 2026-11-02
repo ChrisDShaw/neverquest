@@ -1,0 +1,44 @@
+node_modules/
+.local/
+coverage/
+*.log
+
+# Build output and local tooling
+dist/
+out/
+release/
+.codex/
+.agents/
+.aws/
+
+# Credentials and local environment
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+
+# Game files and companion data (generic patterns only)
+Ledger/
+Archive/
+journal/
+*_Character_*.json
+*_Social_*.json
+chats.json
+windows.json
+controls.json
+collection.json
+collection.json.*
+preferences.json
+market.json
+catalogue.json
+integrity.json
+network.json
+pins.json
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.sqlite-*

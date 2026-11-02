@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Neverquest · Monsters &amp; Memories</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.mjs"></script>
+</head>
+<body>
+  <svg class="icons" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
+    <symbol id="compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m16 8-3 5-5 3 3-5Z"/></symbol>
+    <symbol id="book" viewBox="0 0 24 24"><path d="M12 5C8 2 4 3 2 4v15c3-2 7-2 10 0 3-2 7-2 10 0V4c-2-1-6-2-10 1Zm0 0v14"/></symbol>
+    <symbol id="gem" viewBox="0 0 24 24"><path d="m3 8 4-5h10l4 5-9 13Zm0 0h18M7 3l5 18 5-18"/></symbol>
+    <symbol id="coin" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 4 16 4 16 0V6M4 12v6c0 4 16 4 16 0"/></symbol>
+    <symbol id="people" viewBox="0 0 24 24"><circle cx="9" cy="7" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 4a3 3 0 0 1 0 6m2 4a5 5 0 0 1 3 5v2"/></symbol>
+    <symbol id="leaf" viewBox="0 0 24 24"><path d="M20 3C5 2 1 13 7 17s15 0 13-14ZM4 21l12-12"/></symbol>
+    <symbol id="folder" viewBox="0 0 24 24"><path d="M3 20V5h7l2 3h9v12Z"/></symbol>
+    <symbol id="search" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/></symbol>
+    <symbol id="pin" viewBox="0 0 24 24"><path d="m9 3 12 12-5 1-4 4-3-5-5-3 4-4ZM9 15l-6 6"/></symbol>
+    <symbol id="arrow" viewBox="0 0 24 24"><path d="M4 12h15m-6-6 6 6-6 6"/></symbol>
+  </defs></svg>
+  <aside class="sidebar">
+    <div class="brand"><svg><use href="#compass"/></svg><div>NEVERQUEST<span>A COMPANION FOR THE JOURNEY</span></div></div>
+    <div class="game-label">MONSTERS &amp; MEMORIES</div>
+    <nav aria-label="Ledger views">
+      <button class="nav active" data-view="All"><svg><use href="#compass"/></svg>Adventure</button>
+      <button class="nav" data-page="market"><svg><use href="#coin"/></svg>Market</button>
+      <button class="nav" data-page="goals"><svg><use href="#gem"/></svg>Goals &amp; wishlist</button>
+      <button class="nav" data-page="notebook"><svg><use href="#book"/></svg>Field notes</button>
+      <button class="nav" data-page="settings"><svg><use href="#folder"/></svg>Preferences</button>
+    </nav>
+    <div class="sidebar-bottom">
+      <div class="privacy"><span class="status-dot"></span>Saved on your PC<p>Your ledger stays on your PC.</p></div>
+      <button id="source-button" class="secondary full"><svg><use href="#folder"/></svg>Connect a ledger</button>
+      <button id="demo-button" class="quiet full">Explore the demo</button>
+      <span class="version">NEVERQUEST / EARLY BUILD 0.1</span>
+    </div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar">
+      <div class="character"><span id="avatar" class="avatar">R</span><div><strong id="character-name">Rowan</strong><span id="server-name">Demo realm</span></div><span id="mode-badge" class="badge">DEMO DATA</span></div>
+      <div class="top-actions"><span id="connection-status" class="connection">Showing demo data</span><button id="pin-button" class="icon-button" aria-label="Keep window on top" title="Keep window on top" aria-pressed="false"><svg><use href="#pin"/></svg></button></div>
+    </header>
+    <main>
+      <section class="intro"><div><div class="eyebrow">EVERY LITTLE ADVENTURE, REMEMBERED</div><h1 id="page-title">Your adventure ledger<span>.</span></h1><p id="page-subtitle">Loot, coin drops and notes from your time in the game.</p></div><label class="date-picker"><span>DATES</span><select id="day-select" aria-label="Activity dates"><option value="">All dates</option></select></label></section>
+      <div id="demo-banner" class="demo-banner"><span class="badge">TRY THE DEMO</span><span>This is sample data. Connect your character’s ledger to see your own activity.</span><button id="banner-connect">Connect ledger <svg><use href="#arrow"/></svg></button></div>
+      <div id="notice" class="notice" role="status" hidden></div>
+      <section class="session-toolbar" aria-label="Session and run scope"><label>Session / run<select id="session-select"><option value="">All activity in the selected dates</option></select></label><button id="start-adventure" class="primary" title="Give part of your activity a name and choose when it starts and ends">Start named run</button><button id="end-adventure" class="secondary" hidden>End run</button><button id="past-adventures" class="quiet">Session history</button><button id="open-timers" class="quiet">Timers</button><button id="open-overlays" class="quiet">Overlays</button><button id="open-map" class="quiet" hidden title="Open the public atlas in your browser for the last recorded zone">Zone map</button><button id="copy-report" class="quiet">Copy summary</button><span id="running-session"></span></section>
+      <section id="workbench" hidden></section>
+      <div id="ledger-dashboard">
+      <section class="stats" aria-label="Period totals">
+        <article class="stat"><div class="stat-heading">ITEM VENDOR VALUE<svg><use href="#gem"/></svg></div><strong id="stat-value">0 cp</strong><span id="stat-value-note">Estimated from saved vendor sales</span></article>
+        <article class="stat"><div class="stat-heading">COIN DROPS<svg><use href="#coin"/></svg></div><strong id="stat-coin">0 cp</strong><span id="stat-coin-note">Total before party splits; may include nearby players.</span></article>
+        <article class="stat"><div class="stat-heading">NET VENDOR EARNINGS<svg><use href="#coin"/></svg></div><strong id="stat-vendor">0 cp</strong><span id="stat-vendor-note">Your sales minus your purchases</span></article>
+      </section>
+      <div class="content-grid">
+        <section class="panel journal"><div class="panel-header"><div><span class="eyebrow">THE STORY SO FAR</span><h2 id="feed-title">Recent activity</h2></div><label class="feed-filter"><span class="sr-only">Activity type</span><select id="activity-filter"><option value="All">All activity</option><option value="Loot">Loot</option><option value="Vendors">Vendor visits</option><option value="Party">Party events</option><option value="Harvest">Gathering</option><option value="Trade">Trades</option><option value="Items">Dropped / picked up / destroyed</option><option value="Progression">Level milestones</option></select></label></div>
+          <label class="search"><svg><use href="#search"/></svg><input id="search" type="search" placeholder="Find a player, item, creature, or place…" aria-label="Search ledger events" autocomplete="off"><kbd>/</kbd></label>
+          <p id="activity-summary" class="activity-summary"></p><div id="feed" class="feed"></div><div class="feed-footer"><span id="event-count" class="count">0 events</span><button id="show-more" class="quiet show-more" hidden>Show more events</button></div>
+        </section>
+        <div class="right-column"><section class="panel"><div class="panel-header"><div><span class="eyebrow">SOMETHING TO AIM FOR</span><h2>Working towards</h2></div><button id="manage-goals" class="quiet">Goals →</button></div><div id="goal-preview" class="goal-preview"></div></section>
+          <section class="panel"><div class="panel-header"><div><span class="eyebrow">ITEMS FOUND</span><h2>Recorded loot <span id="stat-items" class="count">0</span></h2></div><svg class="section-icon"><use href="#gem"/></svg></div><p id="stat-kinds" class="panel-footnote"></p><div id="items" class="item-list"></div></section>
+          <details class="panel participant-details"><summary>Who found what <span id="stat-players" class="count">0</span></summary><div id="players" class="players"></div><p class="panel-footnote">Includes nearby players’ recorded loot. Personal coin shares are shown only when the game records them.</p></details>
+          <div class="field-note"><svg><use href="#book"/></svg><div><strong>What your ledger can tell you</strong><p>Ledgers record activity such as loot and trades. Combat details, player positions and a complete party list aren’t available.</p></div></div>
+        </div>
+      </div>
+      </div>
+      <footer><span id="source-label">DEMO · NO GAME FILES CONNECTED</span><span id="refresh-label">Showing sample data.</span></footer>
+    </main>
+  </div>
+  <dialog id="source-dialog"><form method="dialog"><button class="dialog-close quiet" aria-label="Close">×</button></form><div class="eyebrow">CONNECT A CHARACTER</div><h2>Connect your ledger</h2><p>Choose your character’s folder or its Ledger folder. Neverquest reads the saved activity and archive, then checks for changes every two seconds.</p><div class="dialog-actions"><button id="choose-folder" class="primary"><svg><use href="#folder"/></svg>Choose folder</button><button id="find-characters" class="secondary">Find game characters</button></div><div id="sources" class="sources" aria-live="polite"></div><p class="dialog-note">Only your selected character’s files are read. Game files are never modified.</p></dialog>
+</body>
+</html>

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Neverquest overlay</title>
+  <link rel="stylesheet" href="overlay.css">
+  <script type="module" src="overlay.mjs"></script>
+</head>
+<body>
+  <section id="overlay" data-shade="15" aria-label="Neverquest overlay">
+    <div class="overlay-handle" title="Drag to move"><span id="overlay-kind">Loot</span><span id="overlay-source"></span></div>
+    <div class="overlay-controls">
+      <button id="open-companion" aria-label="Open companion" title="Open companion">↗</button>
+      <button id="overlay-pin" aria-label="Keep overlay on top" aria-pressed="true" title="Keep on top">⌖</button>
+      <button id="overlay-settings" aria-label="Background settings" aria-expanded="false" title="Background opacity">◐</button>
+      <button id="overlay-close" aria-label="Close overlay" title="Close">×</button>
+    </div>
+    <div id="background-settings" hidden><label>Background <input id="background-opacity" type="range" min="0" max="100" step="5" value="15"><output id="background-value">15%</output></label></div>
+    <div id="overlay-content"></div>
+    <div id="overlay-footnote"></div>
+    <div id="overlay-status" role="status" hidden></div>
+    <div id="resize-grip" title="Drag to resize" aria-hidden="true">⌟</div>
+  </section>
+</body>
+</html>
