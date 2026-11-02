@@ -1,4 +1,4 @@
-import { readdir, readFile, lstat } from 'node:fs/promises';
+import { readdir, readFile, lstat, realpath } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,7 +30,12 @@ export async function publicCandidates(root) {
   let hasGitMetadata = false;
   try { await lstat(path.join(root, '.git')); hasGitMetadata = true; } catch (error) { if (error.code !== 'ENOENT') throw error; }
   if (hasGitMetadata && git.status !== 0) throw new Error('Git metadata exists but the Git index could not be inspected.');
-  if (git.status === 0 && path.resolve(git.stdout.trim()).toLowerCase() === path.resolve(root).toLowerCase()) {
+  // Git may expand Windows short paths or resolve directory junctions. Compare
+  // filesystem locations so those aliases still receive staged-content checks.
+  const isRepositoryRoot = git.status === 0
+    && path.relative(await realpath(root), await realpath(git.stdout.trim())) === '';
+  if (hasGitMetadata && !isRepositoryRoot) throw new Error('Git metadata exists but the repository root could not be verified.');
+  if (isRepositoryRoot) {
     const listed = spawnSync('git', ['-C', root, 'ls-files', '--cached', '--others', '--exclude-standard', '-z'],
       { encoding: 'utf8', windowsHide: true, maxBuffer: 10_000_000 });
     if (listed.status !== 0) throw new Error('Cannot enumerate public Git files.');

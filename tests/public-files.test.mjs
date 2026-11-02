@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm, symlink } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
@@ -61,6 +61,25 @@ test('public source guard catches staged sensitive content even after the workin
   await writeFile(path.join(dir, 'README.md'), 'ghp_' + 'a'.repeat(32)); git('add', 'README.md');
   await writeFile(path.join(dir, 'README.md'), 'Invented clean documentation');
   const result = await checkPublicFiles(dir);
+  assert.ok(result.findings.some(f => f.file === 'README.md' && f.reasons.includes('Staged: Possible credential or private key')));
+});
+
+test('public source guard checks staged secrets and force-tracked private files through a directory alias', async t => {
+  const installed = spawnSync('git', ['--version'], { windowsHide: true });
+  if (installed.error?.code === 'ENOENT') { t.skip('Git is not installed'); return; }
+  const dir = await scratch(t), repo = path.join(dir, 'repository'), alias = path.join(dir, 'alias');
+  await mkdir(repo);
+  const git = (...args) => { const r = spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8', windowsHide: true }); assert.equal(r.status, 0, r.stderr || r.error?.message); };
+  git('init', '--quiet');
+  await writeFile(path.join(repo, '.gitignore'), '.local/\n');
+  await writeFile(path.join(repo, 'README.md'), 'ghp_' + 'a'.repeat(32));
+  await mkdir(path.join(repo, '.local')); await writeFile(path.join(repo, '.local', 'collection.json'), '{}');
+  git('add', '.gitignore', 'README.md'); git('add', '--force', '.local/collection.json');
+  await writeFile(path.join(repo, 'README.md'), 'Invented clean documentation');
+  await symlink(repo, alias, process.platform === 'win32' ? 'junction' : 'dir');
+  const result = await checkPublicFiles(alias);
+  assert.equal(result.mode, 'Git index and unignored files');
+  assert.ok(result.findings.some(f => f.file.replaceAll('\\', '/') === '.local/collection.json'));
   assert.ok(result.findings.some(f => f.file === 'README.md' && f.reasons.includes('Staged: Possible credential or private key')));
 });
 
