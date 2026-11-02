@@ -10,10 +10,11 @@ Install Node.js 22.12 or newer and npm, then run these commands from the project
 
 ```powershell
 npm ci
+npm exec --no -- install-electron
 npm start
 ```
 
-`npm ci` installs the pinned dependencies and downloads the Electron runtime used to run the app.
+`npm ci` installs the pinned dependencies. The pinned Electron package has no install script, so run `npm exec --no -- install-electron` separately to download the runtime used to run the app. This uses the locally installed Electron package and verifies the download against its bundled checksums by default.
 
 Neverquest opens with **sample data** so you can try it before connecting a character. Choose **Connect a ledger** → **Find game characters**, or select your character’s folder or its `Ledger` folder yourself. A ledger is the set of activity files the game saves for each character.
 

@@ -10,13 +10,16 @@ Use Node.js 22.12 or newer and npm. Windows CI is configured for Node 22.12 and 
 
 ```powershell
 npm ci
+npm exec --no -- install-electron
 npm test
 npm run check
 npm run check:public
 npm start
 ```
 
-`npm ci` installs the locked dependencies and downloads the official Electron runtime. CI uses `npm ci --ignore-scripts` for tests and syntax checks, which don’t need the Electron binary. Use ordinary `npm ci` before running the app or the smoke test locally.
+`npm ci` installs the locked dependencies. The pinned Electron package has no install script; `npm exec --no -- install-electron` uses its local installer to download the official runtime and verify it against the package’s bundled checksums by default. Run both commands before running the app or the smoke test locally. Electron can also download the runtime on first launch if it is missing.
+
+CI uses `npm ci --ignore-scripts` for tests and syntax checks, which don’t need the Electron binary, and skips the separate runtime installation step.
 
 ## Test your changes
 
