@@ -14,7 +14,7 @@ export class Workbench {
     const button = this.e('button', 'dialog-close quiet', '×'); button.type = 'submit'; button.setAttribute('aria-label', 'Close details');
     close.append(button); this.detailTitle = this.e('h2'); this.detailBody = this.e('div', 'detail-body');
     this.detailDialog.append(close, this.detailTitle, this.detailBody); document.body.append(this.detailDialog);
-    this.detailDialog.addEventListener('close', () => { this.drawerBuilder = null; });
+    this.detailDialog.addEventListener('close', () => { if (!this.detailDialog.open) this.drawerBuilder = null; });
   }
   open(page, remember = true) {
     this.page = page; this.edit = {};
@@ -168,7 +168,7 @@ export class Workbench {
     audio.play().catch(() => this.message('We couldn’t play that sound. Try a different WAV, MP3 or OGG file.'));
   }
   settings() {
-    const sessions = this.panel('Automatic sessions', 'Neverquest groups recorded activity into sessions. A gap between activities starts a new session. Session duration can differ from your total time in the game. Named runs are optional.');
+    const sessions = this.panel('Automatic sessions', 'Neverquest groups recorded activity into sessions. A gap between activities starts a new session. Session duration can differ from your total time in the game. Hunts are optional.');
     this.form(sessions, [{ name: 'minutes', label: 'Start a new session after a gap of (minutes)', type: 'number', min: 10, max: 180,
       value: this.s.preferences.sessionGapMinutes ?? 30, required: true }], 'Save session setting', v => this.act('session:gap', { minutes: Number(v.minutes) }));
     const utilities = this.panel('Timers & alerts', 'Set up countdowns, choose activity alerts and add sounds.');
@@ -182,12 +182,12 @@ export class Workbench {
     const panels = this.panel('Overlays', 'Keep loot, session totals, timers or a map visible while you play. Drag the handle to move an overlay and the corner to resize it. Use its controls to pin it or change the background; text stays fully visible.');
     panels.append(this.e('p', 'help', 'Use windowed mode for reliable overlay interaction. If the game offers borderless mode, test it as an alternative. Full-screen mode can cover desktop overlays.'));
     const buttons = this.e('div', 'button-row');
-    for (const kind of ['loot', 'session', 'timers', 'map']) buttons.append(this.button(`Open ${kind} overlay`, async () => {
+    for (const kind of ['loot', 'hunt', 'session', 'timers', 'map']) buttons.append(this.button(`Open ${kind} overlay`, async () => {
       const result = await this.call(() => this.api.openPanel(kind)); if (result) this.message(result);
     }));
     panels.append(buttons);
-    this.form(panels, [{ name: 'kind', label: 'Overlay to adjust', options: ['loot', 'session', 'timers', 'map'].map(k => [k, k]) },
-      { name: 'opacity', label: 'Background only (%)', type: 'number', value: 15, min: 0, max: 100, required: true },
+    this.form(panels, [{ name: 'kind', label: 'Overlay to adjust', options: ['loot', 'hunt', 'session', 'timers', 'map'].map(k => [k, k]) },
+      { name: 'opacity', label: 'Background only (%)', type: 'number', value: 100, min: 0, max: 100, required: true },
       { name: 'pinned', label: 'Always on top', options: [['no', 'Off'], ['yes', 'On']], value: 'yes' }], 'Adjust open overlay', async v => {
       const result = await this.call(() => this.api.configurePanel(v.kind, Number(v.opacity), v.pinned === 'yes')); if (result) this.message('Overlay background and pinning updated. Text stays solid.');
     });

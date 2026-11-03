@@ -1,6 +1,6 @@
 export function overlaySettings(companion, kind) {
   const saved = companion?.data.profiles[companion.sourceId]?.overlays?.[kind];
-  return { background: Number.isInteger(saved?.background) ? Math.max(0, Math.min(100, Math.round(saved.background / 5) * 5)) : 15,
+  return { background: Number.isInteger(saved?.background) ? Math.max(0, Math.min(100, Math.round(saved.background / 5) * 5)) : 100,
     pinned: saved?.pinned !== false };
 }
 

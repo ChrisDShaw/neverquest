@@ -3,12 +3,14 @@ import { itemKey } from './analysis.mjs';
 import { overlayView, overlayContentKey } from './overlay-model.mjs';
 import { Requests } from './requests.mjs';
 import { createMapView } from './map-view.mjs';
+import { huntMessages, shortMoney } from './hunts.mjs';
 
 const api = window.companion, kind = new URL(location.href).searchParams.get('panel');
 const $ = id => document.getElementById(id), requests = new Requests();
-let snapshot, background = 15, pinned = true;
+let snapshot, background = 100, pinned = true;
 let mapView;
 let contentKey;
+let huntPage = 0, huntId;
 const seenNotifications = new Set();
 function node(tag, cls, text) {
   const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e;
@@ -38,14 +40,18 @@ async function configure(shade, pin) {
 function render(next = snapshot) {
   if (!next) return; snapshot = next;
   const view = overlayView(snapshot, kind, innerHeight);
-  if (document.activeElement !== $('background-opacity')) applySettings(snapshot.overlaySettings?.[kind] ?? { background: 15, pinned: true });
-  setText('overlay-kind', kind === 'session' ? 'Session' : kind === 'timers' ? 'Timers' : kind === 'map' ? 'Map' : 'Loot');
+  if (document.activeElement !== $('background-opacity')) applySettings(snapshot.overlaySettings?.[kind] ?? { background: 100, pinned: true });
+  setText('overlay-kind', kind === 'hunt' ? 'Hunt' : kind === 'session' ? 'Session' : kind === 'timers' ? 'Timers' : kind === 'map' ? 'Map' : 'Loot');
   setText('overlay-source', `${snapshot.demo ? 'Demo · ' : ''}${snapshot.character}`);
   const content = $('overlay-content');
   const nextKey = kind === 'map' ? null : overlayContentKey(snapshot, kind, view);
   const changed = nextKey !== contentKey;
+  // Live loot must not replace a member name while the user is typing it.
+  if (kind === 'hunt' && content.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') return;
   if (kind !== 'map' && changed) { content.replaceChildren(); contentKey = nextKey; }
-  if (kind === 'map') {
+  if (kind === 'hunt' && changed) {
+    renderHunt(content, view);
+  } else if (kind === 'map') {
     content.classList.add('map-mode');
     if (!mapView) mapView = createMapView(content, api, () => snapshot, null); else mapView.update();
     setText('overlay-footnote', `${snapshot.mapZone?.source ?? 'Ledger'} · ${snapshot.mapZone?.zone ?? 'No zone yet'} · no position tracking`);
@@ -102,6 +108,87 @@ function render(next = snapshot) {
     if (snapshot.audioTarget !== kind || !notification.soundId) continue;
     const audio = new Audio(`app://neverquest/sounds/${encodeURIComponent(notification.soundId)}`); audio.volume = 0.65; audio.play().catch(() => {});
   }
+}
+function renderHunt(content, view) {
+  content.classList.add('hunt-mode');
+  const sourceId = snapshot.sourceId, hunt = view.hunt, summary = view.huntSummary;
+  const button = (text, action) => {
+    const b = node('button', '', text); b.type = 'button'; b.addEventListener('click', action); return b;
+  };
+  if (!hunt) {
+    const message = node('div', 'overlay-empty', 'Start a solo or group hunt to track loot and shares.');
+    message.append(button('Start hunt', () => call(() => api.showHunt('', sourceId)))); content.append(message);
+    setText('overlay-footnote', 'Group members are entered manually'); return;
+  }
+  if (huntId !== hunt.id) { huntId = hunt.id; huntPage = 0; }
+  const caption = node('div', 'overlay-caption', view.caption); caption.title = view.caption;
+  const total = node('div', 'hunt-total', `Loot ${shortMoney(summary.total)}${summary.unpriced ? ` + ${summary.unpriced} unpriced` : ''} · ${summary.players.length} ${summary.players.length === 1 ? 'member' : 'members'}`);
+  const controls = node('div', 'hunt-controls');
+  controls.append(button('Hunt details', () => call(() => api.showHunt(hunt.id, sourceId))));
+  controls.append(summary.running ? button('End hunt', async () => {
+    const next = await call(() => api.action('session:end', { id: hunt.id }, sourceId)); if (next) render(next);
+  }) : button('Start hunt', () => call(() => api.showHunt('', sourceId))));
+  content.append(caption, total, controls);
+  const form = node('form', 'hunt-member-form');
+  const input = node('input'); input.type = 'text'; input.placeholder = 'Add group member'; input.maxLength = 60;
+  input.required = true; input.setAttribute('aria-label', 'Group member name');
+  input.addEventListener('blur', () => { setTimeout(() => render(), 0); });
+  const add = node('button', '', 'Add'); add.type = 'submit';
+  form.append(input, add); content.append(form);
+  form.addEventListener('submit', async event => {
+    event.preventDefault(); add.disabled = true;
+    const next = await call(() => api.action('hunt:add-member', { id: hunt.id, name: input.value }, sourceId));
+    add.disabled = false;
+    if (next) { input.blur(); render(next); }
+  });
+  const rows = node('div', 'hunt-rows'), pages = Math.max(1, Math.ceil(view.entries.length / view.capacity));
+  huntPage = Math.min(huntPage, pages - 1);
+  for (const entry of view.entries.slice(huntPage * view.capacity, (huntPage + 1) * view.capacity)) {
+    const row = node('div', 'hunt-row');
+    if (entry.type === 'payment') {
+      const payment = `${summary.running ? 'So far: ' : ''}${entry.from} pays ${entry.to} ${shortMoney(entry.amount)}`;
+      const label = node('span', 'hunt-payment', payment); label.title = payment; row.append(label);
+    } else {
+      const label = node('span', 'hunt-member-name', entry.name); label.title = entry.name;
+      const value = `${shortMoney(entry.value)}${entry.unpriced ? ' + unpriced' : ''}`;
+      const amount = node('span', 'hunt-member-value', value); amount.title = value;
+      row.append(label, amount);
+      if (itemKey(entry.name) !== itemKey(snapshot.character)) {
+        const remove = button('×', async () => {
+          const next = await call(() => api.action('hunt:remove-member', { id: hunt.id, name: entry.name }, sourceId));
+          if (next) render(next);
+        });
+        remove.setAttribute('aria-label', `Remove ${entry.name} from hunt`); row.append(remove);
+      }
+    }
+    rows.append(row);
+  }
+  content.append(rows);
+  if (pages > 1) {
+    const paging = node('div', 'hunt-controls');
+    const move = delta => { huntPage += delta; contentKey = undefined; render(); };
+    const previous = button('Previous', () => move(-1)), next = button('Next', () => move(1));
+    previous.disabled = huntPage === 0; next.disabled = huntPage === pages - 1;
+    paging.append(previous, node('span', '', `${huntPage + 1}/${pages}`), next); content.append(paging);
+  }
+  if (!summary.unpriced || summary.running) {
+    const messages = huntMessages(summary); let part = 0;
+    const title = summary.running ? 'Copy running summary' : summary.players.length > 1 ? 'Copy settlement' : 'Copy hunt summary';
+    const label = () => `${title}${messages.length > 1 ? ` ${part + 1}/${messages.length}` : ''}`;
+    const copy = button(label(), async () => {
+      copy.disabled = true;
+      const result = await call(() => api.copyHunt(hunt.id, part, messages[part], sourceId));
+      copy.disabled = false;
+      if (result) {
+        setText('overlay-status', messages.length > 1 ? `Copied ${part + 1}/${messages.length}` : result); $('overlay-status').hidden = false;
+        part = (part + 1) % messages.length; copy.textContent = label();
+      }
+    });
+    copy.classList.add('hunt-copy'); content.append(copy);
+  } else content.append(node('div', 'hunt-pricing', 'Price unpriced items in Hunt details to settle.'));
+  const footnote = summary.unpriced ? 'Unpriced items: payments pending' : summary.running ? 'Live item values · payments are provisional'
+    : summary.excluded ? `${summary.excluded} items excluded · coin already shared` : 'Item values only · coin already shared';
+  setText('overlay-footnote', footnote);
 }
 function empty(text, action) {
   const e = node('div', 'overlay-empty'); e.append(node('div', '', text));

@@ -31,7 +31,7 @@ test('sessions preserve event-time boundaries, names and character scope', async
   assert.equal(saved.name, 'The crypt');
   assert.deepEqual(scopeEvents([event('before', 'act_13', { at: 499 }), event('in', 'act_13'), event('end', 'act_13', { at: 2000 })], { session: saved }).map(e => e.identity), ['in']);
   assert.equal(app.scoped({ sessionId: saved.id }).session.id, saved.id);
-  await assert.rejects(app.action('session:end', { id: 'foreign' }), /No active named run/);
+  await assert.rejects(app.action('session:end', { id: 'foreign' }), /No active hunt/);
 });
 
 test('price book learns whole-stack unit prices, includes zero-price sales and isolates servers', () => {

@@ -80,16 +80,34 @@ export async function verifyUI(window, panels, demo) {
     await wait(() => !button($('#detail-dialog'), 'Restore automatic grouping'));
     $('#detail-dialog').close();
 
-    // A session is started, ended and revisited from the adventure screen.
+    // Solo hunts default to one member; a completed hunt can become a group settlement.
     await click($('[data-view=All]'));
     await click($('#start-adventure'));
     const yesterday = new Date(Date.now() - 86400000);
     const local = new Date(yesterday.getTime() - yesterday.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     await submit($('#detail-dialog'), { name: 'Smoke adventure', start: local });
     await wait(() => !$('#detail-dialog').open && !$('#end-adventure').hidden);
-    assert(!$('#ledger-dashboard').hidden && $('#session-select').value, 'Starting a run must open its dashboard');
+    assert(!$('#ledger-dashboard').hidden && $('#session-select').value, 'Starting a hunt must open its dashboard');
     await click($('#end-adventure'));
-    await wait(() => $('#end-adventure').hidden);
+    await wait(() => $('#end-adventure').hidden && $('#detail-dialog').textContent.includes('Solo hunt'));
+    assert(!button($('#detail-dialog'), 'Copy settlement'), 'Solo hunts must not offer group settlement');
+    await click(button($('#detail-dialog'), 'Add group members'));
+    await submit($('#detail-dialog'), { members: 'Rowan\nMira\nThorne\nElowen\nBram\nSable' });
+    await wait(() => $('#detail-dialog').textContent.includes('6 hunt members'));
+    assert($('#detail-dialog').textContent.includes('Sable'), 'Members with no loot must remain in the split');
+    assert(!button($('#detail-dialog'), 'Copy settlement'), 'Unpriced items must block settlement copying');
+    for (const item of ['Rat Tooth', 'Bone Chips', 'Wool Scraps', 'Crocodile Tooth', 'Weathered Medallion']) {
+      const form = [...document.querySelectorAll('#detail-dialog form.bench-form')].find(f => f.textContent.includes(item));
+      form.closest('details').open = true;
+      form.querySelector('[name=mode]').value = 'custom'; form.querySelector('[name=unit]').value = '100';
+      form.requestSubmit(); await wait(() => !form.isConnected);
+    }
+    const preview = $('#detail-dialog .hunt-message');
+    assert(preview && preview.textContent.includes('Loot value 6s (1s each)'), 'The copied summary must use the group item total and equal share');
+    assert(preview.textContent.length <= 240 && !preview.textContent.includes('coin'), 'Game chat must be short and item-only');
+    assert(button($('#detail-dialog'), 'Copy settlement'), 'A priced group hunt must offer a settlement');
+    // Inspect the preview only: smoke tests must never write to the real clipboard.
+    $('#detail-dialog').close();
     await click($('#past-adventures'));
     await click(button($('#detail-dialog'), 'Revisit'));
     assert(!$('#detail-dialog').open && !$('#ledger-dashboard').hidden, 'Revisit must open the run, not leave a data table');
@@ -99,6 +117,9 @@ export async function verifyUI(window, panels, demo) {
     await submit($('#detail-dialog'), { name: 'A second run' });
     await wait(() => !$('#detail-dialog').open && !$('#end-adventure').hidden);
     await click($('#end-adventure')); await wait(() => $('#end-adventure').hidden);
+    await wait(() => $('#detail-dialog').textContent.includes('Solo hunt'));
+    assert(button($('#detail-dialog'), 'Copy hunt summary'), 'An empty solo hunt can copy a summary without payments');
+    $('#detail-dialog').close();
     await click($('#past-adventures'));
     const saved = (await window.companion.getSnapshot()).value.sessions.filter(s => s.kind !== 'automatic');
     await submit($('#detail-dialog'), { a: saved[0].id, b: saved[1].id });
@@ -128,7 +149,9 @@ export async function verifyUI(window, panels, demo) {
     assert(!(await window.companion.action('arbitrary:command', {})).ok, 'Unknown operations must be rejected');
     assert(!(await window.companion.action('note:save', { kind: 'item', subject: 'Wrong character', body: 'Do not save' }, 'stale-source')).ok,
       'A stale panel must not write to a different character');
-    for (const kind of ['loot', 'session', 'timers', 'map']) {
+    assert((await window.companion.action('session:start', { name: 'Overlay hunt', startedAt: yesterday.getTime(), members: ['Mira'] }, 'demo')).ok, 'Prepare an invented live hunt for the overlay');
+    for (const kind of ['loot', 'hunt', 'session', 'timers', 'map']) {
+      assert((await window.companion.getSnapshot()).value.overlaySettings[kind].background === 100, 'New overlays must default to fully opaque backgrounds');
       assert((await window.companion.openPanel(kind)).ok, 'Compact panel must open');
       assert((await window.companion.configurePanel(kind, 20, true)).ok, 'Overlay background preferences must apply');
     }
@@ -179,6 +202,46 @@ export async function verifyUI(window, panels, demo) {
         && getComputedStyle(document.querySelector('.overlay-controls')).opacity === '1';
     })()`);
     if (!stablePoll) throw new Error('Polling must preserve overlay content, open settings and solid controls');
+    if (kind === 'hunt') {
+      const huntChecks = await panel.webContents.executeJavaScript(`(async () => {
+        const wait = async predicate => {
+          for (let i = 0; i < 100; i++) { if (predicate()) return; await new Promise(resolve => setTimeout(resolve, 50)); }
+          throw new Error('Hunt overlay did not update');
+        };
+        const content = document.querySelector('#overlay-content');
+        if (!content.textContent.includes('Overlay hunt') || !content.textContent.includes('Mira')
+          || !content.textContent.includes('Copy running summary')) throw new Error('Live hunt must show its members and running copy action');
+        if (content.querySelector('.hunt-payment')) throw new Error('Unpriced loot must not produce payments');
+        const input = content.querySelector('.hunt-member-form input');
+        input.focus(); input.value = 'Thorne';
+        const state = (await window.companion.getSnapshot()).value;
+        const hunt = state.sessions.find(s => s.kind !== 'automatic' && s.endedAt === null);
+        await window.companion.action('hunt:add-member', { id: hunt.id, name: 'Elowen' }, state.sourceId);
+        await new Promise(resolve => setTimeout(resolve, 2300));
+        if (!input.isConnected || document.activeElement !== input || input.value !== 'Thorne')
+          throw new Error('Polling must preserve a member name being typed');
+        input.form.requestSubmit();
+        await wait(() => content.textContent.includes('Thorne') && content.textContent.includes('Elowen'));
+        const remove = content.querySelector('[aria-label="Remove Thorne from hunt"]');
+        if (!remove) throw new Error('Overlay must offer member removal'); remove.click();
+        await wait(() => !content.querySelector('[aria-label="Remove Thorne from hunt"]'));
+        for (const item of ['Rat Tooth', 'Bone Chips', 'Wool Scraps', 'Weathered Medallion']) {
+          const result = await window.companion.action('hunt:price', { id: hunt.id, item, mode: 'custom', unit: 100 }, state.sourceId);
+          if (!result.ok) throw new Error(result.error);
+        }
+        await wait(() => !!content.querySelector('.hunt-payment'));
+        const details = [...content.querySelectorAll('button')].find(b => b.textContent === 'Hunt details'); details.click();
+        return true;
+      })()`);
+      if (!huntChecks) throw new Error('Hunt overlay controls failed');
+      let opened = false;
+      for (let i = 0; i < 100 && !opened; i++) {
+        opened = await window.webContents.executeJavaScript("document.querySelector('#detail-dialog').open && document.querySelector('#detail-dialog').textContent.includes('Overlay hunt') && !![...document.querySelectorAll('#detail-dialog button')].find(b => b.textContent === 'Copy running summary')");
+        if (!opened) await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      if (!opened) throw new Error('Overlay must open the matching live hunt in the companion');
+      await window.webContents.executeJavaScript("document.querySelector('#detail-dialog').close()");
+    }
     if (kind === 'map') {
       const mapReady = await panel.webContents.executeJavaScript(`(async () => {
         for (let i = 0; i < 100; i++) {

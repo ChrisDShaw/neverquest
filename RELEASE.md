@@ -34,7 +34,12 @@ Run `npm run smoke` after installing the Electron runtime. It uses isolated inve
 - [ ] The main window opens. Sample data is clearly labelled and connecting a character is easy to follow.
 - [ ] Item details show vendor estimates, listing age, available servers, goals and decisions. Matching listings and wiki links work.
 - [ ] Automatic sessions can be revisited, renamed, split with a preview, merged and reset without changing records.
-- [ ] Named runs can be started, ended, renamed and revisited.
+- [ ] Hunts can be started, ended, renamed and revisited.
+- [ ] Solo hunts default to the current character; group members with no loot receive a share, and nearby non-members are excluded.
+- [ ] Hunt settlements use item values only, block unresolved prices, preserve agreed prices/exclusions, and conserve whole copper across payments.
+- [ ] Copied hunt messages use p/g/s/c, omit coin drops and fit within 240 characters including page numbers; verify pasting in game manually.
+- [ ] The hunt overlay supports adding/removing members, preserves typed names during polling, and opens the matching hunt details.
+- [ ] Running hunt copies mark provisional values and omit payments for unpriced loot; new overlays default to 100% background opacity while saved choices are preserved.
 - [ ] Loot, session, timer and map overlays open, move and resize; pinning works; backgrounds at 0%, 15% and 100% keep text solid and windows visible.
 - [ ] Hover over and click overlay backgrounds and controls while the app checks for updates. Confirm the overlay and its settings stay visible, main-window preference saves do not cover it, and reopening raises the existing overlay.
 - [ ] Check overlay interaction with the game in windowed mode. Test borderless mode separately if available and record which display modes were tested.

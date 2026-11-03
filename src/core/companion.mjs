@@ -7,6 +7,7 @@ import { category, describe } from '../renderer/model.mjs';
 import { exportBundle, validateBundle } from './portable.mjs';
 import { starterKnowledge } from './knowledge.mjs';
 import { automaticSessions, sessionEdits } from '../renderer/sessions.mjs';
+import { validateMembers, huntMembers, huntSummary, huntMessages } from '../renderer/hunts.mjs';
 
 const text = (value, max = 200) => {
   if (typeof value !== 'string' || !value.trim() || value.length > max) throw new Error(`Enter text between 1 and ${max} characters.`);
@@ -147,7 +148,7 @@ export class Companion {
   scoped({ sessionId = '', day = '' } = {}) {
     if (day && !/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new Error('Choose a valid date.');
     const session = sessionId ? this.sessions().find(s => s.id === sessionId) : null;
-    if (sessionId && !session) throw new Error('This session or run is no longer available. Reopen Session history and choose another.');
+    if (sessionId && !session) throw new Error('This session or hunt is no longer available. Reopen Hunt history and choose another.');
     return { session, events: scopeEvents(this.source?.events ?? [], { session, day }) };
   }
   report(scope) {
@@ -155,26 +156,64 @@ export class Companion {
     const { events, session } = this.scoped(scope);
     return report(this.source, events, priceBook(this.data.sources, this.source.server), session?.name ?? (scope.day || 'All recorded history'));
   }
+  hunt(id) {
+    const hunt = this.data.sessions.find(s => s.id === id && s.sourceId === this.sourceId);
+    if (!this.source || !hunt) throw new Error('This hunt is no longer available. Choose a hunt for the current character.');
+    return hunt;
+  }
+  huntMessage(id, part, expectedText) {
+    const hunt = this.hunt(id);
+    const summary = huntSummary(hunt, this.source.events, priceBook(this.data.sources, this.source.server), this.source.character);
+    const messages = huntMessages(summary);
+    if (!Number.isInteger(part) || !messages[part]) throw new Error('Choose a hunt message to copy.');
+    if (messages[part] !== expectedText) throw new Error('The hunt values changed. Review the updated summary before copying.');
+    return messages[part];
+  }
   async action(command, payload = {}, now = Date.now()) {
     if (!this.source) throw new Error('Choose a character first.');
     switch (command) {
       case 'session:start': {
-        if (this.data.sessions.some(s => s.sourceId === this.sourceId && s.endedAt === null)) throw new Error('End the current run first.');
+        if (this.data.sessions.some(s => s.sourceId === this.sourceId && s.endedAt === null)) throw new Error('End the current hunt first.');
         const startedAt = payload.startedAt === undefined ? now : integer(payload.startedAt, 0, now);
-        this.data.sessions.push({ id: randomUUID(), sourceId: this.sourceId, name: text(payload.name), startedAt, endedAt: null });
+        const members = validateMembers(payload.members ?? [], this.source.character);
+        this.data.sessions.push({ id: randomUUID(), sourceId: this.sourceId, name: text(payload.name), startedAt, endedAt: null, members });
         break;
       }
       case 'session:end': {
         const session = this.data.sessions.find(s => s.id === payload.id && s.sourceId === this.sourceId);
-        if (!session || session.endedAt !== null) throw new Error('No active named run selected.');
+        if (!session || session.endedAt !== null) throw new Error('No active hunt selected.');
         session.endedAt = Math.max(session.startedAt + 1, now); break;
       }
       case 'session:rename': {
         const session = this.sessions().find(s => s.id === payload.id);
-        if (!session) throw new Error('This session or run is no longer available. Reopen Session history and choose another.');
+        if (!session) throw new Error('This session or hunt is no longer available. Reopen Hunt history and choose another.');
         if (session.kind === 'automatic') {
           this.data.preferences.sessionNames ??= {}; this.data.preferences.sessionNames[session.id] = text(payload.name);
         } else this.data.sessions.find(s => s.id === payload.id).name = text(payload.name);
+        break;
+      }
+      case 'hunt:members': {
+        const hunt = this.hunt(payload.id);
+        hunt.members = validateMembers(payload.members, this.source.character); break;
+      }
+      case 'hunt:add-member': case 'hunt:remove-member': {
+        const hunt = this.hunt(payload.id), name = text(payload.name, 60);
+        const members = huntMembers(hunt, this.source.character);
+        hunt.members = validateMembers(command === 'hunt:add-member' ? [...members.filter(member => itemKey(member) !== itemKey(name)), name]
+          : members.filter(member => itemKey(member) !== itemKey(name)), this.source.character);
+        break;
+      }
+      case 'hunt:price': {
+        const hunt = this.hunt(payload.id), key = itemKey(text(payload.item));
+        const summary = huntSummary(hunt, this.source.events, priceBook(this.data.sources, this.source.server), this.source.character);
+        if (!summary.items.some(item => item.key === key)) throw new Error('Choose an item looted by a hunt member.');
+        if (!['vendor', 'custom', 'exclude'].includes(payload.mode)) throw new Error('Choose a value source for this item.');
+        const value = payload.mode === 'custom' ? integer(payload.unit, 0, 1_000_000_000_000) : null;
+        const itemValues = { ...hunt.itemValues };
+        if (payload.mode === 'vendor') delete itemValues[key];
+        else Object.defineProperty(itemValues, key, { value, writable: true, enumerable: true, configurable: true });
+        huntSummary({ ...hunt, itemValues }, this.source.events, priceBook(this.data.sources, this.source.server), this.source.character);
+        hunt.itemValues = itemValues;
         break;
       }
       case 'session:gap': this.data.preferences.sessionGapMinutes = integer(payload.minutes, 10, 180); break;

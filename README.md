@@ -30,7 +30,7 @@ Choose **Explore the demo** to return to sample data. This disconnects the real 
 
 ## Find your way around
 
-- **Adventure:** see recorded loot, coin drops, vendor visits, party changes, gathering, trades and level milestones. Activity is grouped into sessions automatically. Open **Session history** to revisit or compare them, or start an optional named run.
+- **Adventure:** see recorded loot, coin drops, vendor visits, party changes, gathering, trades and level milestones. Activity is grouped into sessions automatically. Open **Hunt history** to revisit or compare them, or start an optional hunt.
 - **Market:** see player buying and selling listings from MnMdb. **Your recorded loot** compares your loot with asking prices on your server. Listings update roughly every six hours. They show what players ask or offer, without confirming completed sales.
 - **Goals & wishlist:** choose an item and how many you need. See recorded drop locations, add quest or crafting details, and adjust your progress.
 - **Field notes:** write notes about items, creatures, zones and sessions. Use **Save moment** beside an activity to bookmark it here.
@@ -44,11 +44,19 @@ Choose an item in the activity feed, recorded loot or goals to see its estimated
 
 The app includes editable quest and crafting notes for four starter items. Each has a source and a date so you can check the details. You can add your own discoveries as you go.
 
-### Sessions and named runs
+### Sessions and hunts
+
+Choose **Start hunt** to track a solo hunt. Your character is included automatically; optionally add group members, one name per line, including anyone who loots nothing. You can start now or backdate the start. **End hunt** opens its summary. Use **Hunt summary** or **Hunt history** to reopen it. Older named runs remain available as hunts.
+
+For a group hunt, confirm the member list and open **Review item values** to check vendor estimates, enter agreed values per item in whole copper, or explicitly exclude an item. Unpriced items block settlement until resolved. Prices and exclusions apply only to that hunt. Members are treated as present for the whole hunt; nearby players outside the list are excluded.
+
+**Settle loot** assumes everyone keeps the items they looted. It suggests payments to equalise item value; coin drops are already shared evenly and do not affect those payments. Shares use whole copper, with any remainder assigned alphabetically. Vendor estimates can change with recorded sales; agreed overrides remain saved. Check values together before paying.
+
+**Copy settlement** produces item totals, each member’s item value and suggested payments in game-chat messages of at most 240 characters, using `p`, `g`, `s` and `c`. **Copy running summary** works before the hunt ends: values and payments are labelled as provisional. If prices are missing, it shows known values and unpriced counts without payments. Long summaries have separate numbered copy buttons. Solo hunts offer **Copy hunt summary** without payments. The broader **Copy summary** report remains available on the dashboard.
 
 By default, a gap of 30 minutes between recorded activities starts a new session. You can change this in Preferences. Sessions reflect ledger activity, so their duration can differ from your total time in the game.
 
-In **Adventure → Session history**, use **Merge with previous…** or **Split session…** to adjust the grouping. Splitting suggests the largest pause and previews the records on each side. Changes are saved for that character and leave ledger records and named runs untouched. **Restore automatic grouping** removes your grouping changes and keeps session names.
+In **Adventure → Hunt history**, use **Merge with previous…** or **Split session…** to adjust the grouping. Splitting suggests the largest pause and previews the records on each side. Changes are saved for that character and leave ledger records and hunts untouched. **Restore automatic grouping** removes your grouping changes and keeps session names.
 
 ### Understand your totals
 
@@ -78,7 +86,9 @@ Open **Adventure → Overlays** or **Preferences → Overlays** for recent loot,
 
 Use the game in **windowed mode** for reliable overlay interaction. You can also try borderless mode if the game offers it. Full-screen mode can cover overlays when you click or hover over them, even with pinning enabled. Reopening an overlay brings it forward but doesn’t fix full-screen compatibility.
 
-Drag the small handle to move an overlay and its lower-right corner to resize it. Each overlay has controls for pinning, background opacity, closing and opening the companion. The background starts at 15% opacity; you can adjust it from 0–100% while the text stays fully visible. Preferences are saved per character.
+Drag the small handle to move an overlay and its lower-right corner to resize it. Each overlay has controls for pinning, background opacity, closing and opening the companion. New overlays start at 100% background opacity; you can adjust it from 0–100% while the text stays fully visible. Existing saved opacity settings are preserved. Preferences are saved per character.
+
+Choose **Hunt & group** in the overlay picker to follow the active hunt or the most recent finished hunt. Add or remove members directly in the overlay, see item values and projected payments, and copy a running summary or finished settlement. Use **Hunt details** for pricing and the full summary. Smaller windows use Previous/Next buttons for additional members and payments; multi-part copy buttons advance through each chat message.
 
 Overlays show as many loot or timer rows as fit. Resize to see more, or open the companion for the full history.
 
@@ -117,7 +127,7 @@ npm run smoke
 
 The tests cover ledger reading, saved history, sessions, prices, goals, settings and download safeguards. The Electron smoke test uses isolated sample data and hidden app windows. Desktop smoke and manual Windows checks remain pending for this early build. Windows CI is configured for Node 22.12 and Node 24; hosted CI has not yet run.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, implementation details and testing guidance, and [RELEASE.md](RELEASE.md) for the release checklist. Record the checks completed for each release in its release notes.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, implementation details and testing guidance, [RELEASE.md](RELEASE.md) for the release checklist, and the [0.2.0 release notes](docs/releases/0.2.0.md) for changes and verification status.
 
 ## Licence and data sources
 

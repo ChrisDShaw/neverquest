@@ -27,7 +27,7 @@ Tests use Node’s built-in runner and invented game records. Add tests when cha
 
 Run `npm run smoke` on a Windows desktop to check app workflows in Electron. It uses a separate data folder under `.local/smoke`, invented game records and fake market and map data. Keep it isolated: it must not read real game files, contact providers, open browser links, use the clipboard or capture the screen.
 
-The smoke test covers item details, goals, decisions, notes, named runs, session editing, bookmarks, gathering, timers, audio and overlays. It also checks navigation and that the renderer has no Node access. Follow the manual checks in [RELEASE.md](RELEASE.md) to check appearance and desktop interaction too.
+The smoke test covers item details, goals, decisions, notes, hunts, session editing, bookmarks, gathering, timers, audio and overlays. It also checks navigation and that the renderer has no Node access. Follow the manual checks in [RELEASE.md](RELEASE.md) to check appearance and desktop interaction too.
 
 ## Protect player data
 
@@ -70,7 +70,7 @@ Saves use atomic replacement: write a new file, then replace the existing save. 
 
 Use everyday words, short paragraphs and direct instructions. Start with what the reader needs to know. Explain unfamiliar terms when they first appear, and give errors a useful next step. Keep a little adventure flavour where it helps; keep controls and recovery messages clear.
 
-Use **session** for automatically grouped activity and **named run** for activity someone starts and ends themselves. Use **coin drops**, **recorded loot** and **net vendor earnings** consistently. Make clear when records include nearby players or estimates. Preserve standard licence text when editing documentation.
+Use **session** for automatically grouped activity and **hunt** for activity someone starts and ends themselves. Use **coin drops**, **recorded loot** and **net vendor earnings** consistently. Make clear when records include nearby players or estimates. Preserve standard licence text when editing documentation.
 
 ## Send a pull request or report
 

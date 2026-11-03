@@ -4,6 +4,7 @@ import { atlasUrl } from './maps.mjs';
 import { itemMarket, readMarket, snapshotAge } from './market-data.mjs';
 import { showMarketListings } from './market-view.mjs';
 import { splitPoint } from './sessions.mjs';
+import { huntMembers, huntSummary, huntMessages } from './hunts.mjs';
 
 const $ = id => document.getElementById(id);
 const stamp = at => at === null ? 'Still running' : new Date(at).toLocaleString();
@@ -15,7 +16,7 @@ export const flows = {
       const panel = this.panel('Keep the essentials in view', 'Keep loot, totals, timers or a map visible while you play. Drag the handle to move an overlay. Use its controls to pin it, change the background or close it.');
       panel.append(this.e('p', 'help', 'Use the game in windowed mode for reliable overlay interaction. You can also try borderless mode. Full-screen mode can cover overlays when you click or hover over them.'));
       const buttons = this.e('div', 'button-row');
-      for (const [kind, title] of [['loot', 'Recent loot'], ['session', 'Session totals'], ['timers', 'Timers'], ['map', 'Zone map']])
+      for (const [kind, title] of [['loot', 'Recent loot'], ['hunt', 'Hunt & group'], ['session', 'Session totals'], ['timers', 'Timers'], ['map', 'Zone map']])
         buttons.append(this.button(title, async () => {
           const result = await this.call(() => this.api.openPanel(kind)); if (result) this.detailDialog.close();
         }));
@@ -23,17 +24,90 @@ export const flows = {
     });
   },
   startAdventure() {
-    this.drawer('Start named run', () => {
-      const panel = this.panel('Give your run a name', 'Start now, or choose an earlier time if you have already been playing.');
-      this.form(panel, [{ name: 'name', label: 'Run name', required: true },
-        { name: 'start', label: 'Started at', type: 'datetime-local', value: localTime(), required: true }], 'Start run', async v => {
-        const next = await this.act('session:start', { name: v.name, startedAt: new Date(v.start).getTime() });
+    this.drawer('Start hunt', () => {
+      const panel = this.panel('Give your hunt a name', 'Track a solo hunt, or add group members, including anyone who loots nothing. Start now or choose an earlier time. Your character is included automatically.');
+      this.form(panel, [{ name: 'name', label: 'Hunt name', required: true },
+        { name: 'start', label: 'Started at', type: 'datetime-local', value: localTime(), required: true },
+        { name: 'members', label: 'Add group members (optional, one name per line)', type: 'textarea' }], 'Start hunt', async v => {
+        const next = await this.act('session:start', { name: v.name, startedAt: new Date(v.start).getTime(),
+          members: v.members.split(/\r?\n/).map(name => name.trim()).filter(Boolean) });
         if (next) this.detailDialog.close();
       });
     });
   },
+  huntDetails(id) {
+    this.drawer('Hunt summary', () => {
+      const hunt = this.s.sessions.find(s => s.id === id && s.kind !== 'automatic');
+      if (!hunt) { this.panel('Hunt unavailable', 'Choose a hunt for the current character.'); return; }
+      const summary = huntSummary(hunt, this.s.events, this.s.prices, this.s.character);
+      const panel = this.panel(hunt.name, `${stamp(hunt.startedAt)} · ${stamp(hunt.endedAt)}. This summary covers the full hunt.`);
+      const members = huntMembers(hunt, this.s.character);
+      panel.append(this.e('p', '', `${members.length === 1 ? 'Solo hunt' : `${members.length} hunt members`}: ${members.join(', ')}`),
+        this.button(members.length === 1 ? 'Add group members' : 'Edit hunt members', () => this.huntMemberEditor(hunt)));
+      if (hunt.endedAt === null) panel.append(this.e('p', 'help', 'Hunt in progress. Copy a running summary now; values and projected payments may change until the hunt ends.'),
+        this.button('End hunt', async () => { if (await this.act('session:end', { id })) this.huntDetails(id); }, 'primary'));
+      const incomplete = summary.unpriced ? ` + ${summary.unpriced} unpriced items` : '';
+      this.table(panel, ['Hunt totals', 'Value'], [
+        ['Item value (vendor estimates or your overrides)', `${formatMoney(summary.total)}${incomplete}`],
+        ['Recorded coin drops (already shared evenly)', `${formatMoney(summary.coin)}${summary.unknownCoin ? ' + unreadable drops' : ''}`],
+        ['Combined recorded value', `${formatMoney(summary.combined)}${incomplete}${summary.unknownCoin ? ' + unreadable drops' : ''}`]
+      ]);
+      panel.append(this.e('p', 'help', 'Only loot recorded for the listed members is included. Check the list: the ledger can include nearby players and miss group activity. Members are treated as present for the whole hunt.'));
+      if (summary.ignored) panel.append(this.e('p', 'help', `${summary.ignored} items looted by other recorded players are left out.`));
+      if (summary.excluded) panel.append(this.e('p', 'help', `${summary.excluded} items explicitly excluded from item value and settlement.`));
+      this.table(panel, ['Member', 'Items', 'Item value', ...(members.length > 1 ? ['Equal item share', 'Settlement'] : [])], summary.players.map(p => [
+        p.name, p.count, `${formatMoney(p.value)}${p.unpriced ? ` + ${p.unpriced} unpriced` : ''}`,
+        ...(members.length > 1 ? [summary.unpriced ? 'Needs pricing' : formatMoney(p.share), summary.unpriced ? 'Needs pricing'
+          : p.balance > 0 ? `Pays ${formatMoney(p.balance)}` : p.balance < 0 ? `Receives ${formatMoney(-p.balance)}` : 'Settled'] : [])
+      ]));
+      if (members.length > 1) {
+        panel.append(this.e('h3', '', hunt.endedAt === null ? 'Projected settlement' : 'Settle loot'), this.e('p', 'help', 'Everyone keeps the items they looted and pays or receives coin to equalise item value. Coin drops are shared evenly already, so they do not create a debt.'));
+        if (summary.remainder && !summary.unpriced) panel.append(this.e('p', 'help', 'Shares differ by at most 1 copper. Remaining copper goes to members in alphabetical order.'));
+        if (!summary.unpriced) for (const payment of summary.payments) panel.append(this.e('p', '', `${payment.from} pays ${payment.to} ${formatMoney(payment.amount)}`));
+        if (!summary.unpriced && !summary.payments.length) panel.append(this.e('p', '', 'Everyone has an equal item value. No payments needed.'));
+      }
+      if (summary.items.length) {
+        const details = this.e('details'); details.append(this.e('summary', '', 'Review item values'));
+        details.append(this.e('p', 'help', 'Prices are per item in whole copper (100c = 1s, 100s = 1g, 100g = 1p). Vendor estimates use current saved sales. Your overrides apply only to this hunt. Explicitly exclude anything the group agrees to leave out.'));
+        for (const item of summary.items) this.form(details, [
+          { name: 'mode', label: `${item.name} × ${item.quantity}`, options: [['vendor', 'Saved vendor estimate'], ['custom', 'Agreed value'], ['exclude', 'Exclude from split']],
+            value: item.override ? item.unit === null ? 'exclude' : 'custom' : 'vendor' },
+          { name: 'unit', label: 'Value per item (copper)', type: 'number', min: 0, max: 1000000000000, step: 1, value: item.unit ?? '' }
+        ], 'Save item value', async v => {
+          if (v.mode === 'custom' && v.unit === '') { this.message('Enter the agreed value per item in copper.'); return; }
+          await this.act('hunt:price', { id, item: item.name, mode: v.mode, unit: Number(v.unit) });
+        });
+        panel.append(details);
+      }
+      if (summary.unpriced) panel.append(this.e('p', 'help', 'Review item values: price or explicitly exclude all unpriced items before final settlement. A running summary can include unpriced items, with payments left out.'));
+      if (!summary.unpriced || summary.running) {
+        panel.append(this.e('h3', '', summary.running ? 'Copy running summary for game chat' : members.length > 1 ? 'Copy settlement for game chat' : 'Copy hunt summary for game chat'),
+          this.e('p', 'help', 'Item values only. Each message fits within 240 characters, using p, g, s and c. Values are vendor estimates unless you changed them above.'));
+        const sourceId = this.s.sourceId;
+        huntMessages(summary).forEach((message, part, messages) => {
+          const preview = this.e('p', 'hunt-message', message);
+          const button = this.button(messages.length === 1 ? summary.running ? 'Copy running summary' : members.length > 1 ? 'Copy settlement' : 'Copy hunt summary' : `Copy ${part + 1}/${messages.length}`, async () => {
+            const result = await this.call(() => this.api.copyHunt(id, part, message, sourceId));
+            if (result) this.message(result);
+          });
+          panel.append(preview, button);
+        });
+      }
+    });
+  },
+  huntMemberEditor(hunt) {
+    this.drawer('Hunt members', () => {
+      const current = this.s.sessions.find(s => s.id === hunt.id && s.kind !== 'automatic');
+      if (!current) { this.panel('Hunt unavailable', 'Reopen Hunt history and choose a hunt.'); return; }
+      const panel = this.panel('Who shared this hunt?', 'Include members who looted nothing. Your character is always included. Only the listed players’ item loot counts towards the split. Use the same spelling as the game records.');
+      this.form(panel, [{ name: 'members', label: 'Members (one name per line)', type: 'textarea',
+        value: huntMembers(current, this.s.character).join('\n'), required: true }], 'Save members', async v => {
+        if (await this.act('hunt:members', { id: hunt.id, members: v.members.split(/\r?\n/).map(name => name.trim()).filter(Boolean) })) this.huntDetails(hunt.id);
+      });
+    });
+  },
   history() {
-    const panel = this.panel('Sessions & named runs', 'Neverquest groups saved activity into sessions, including older records. A gap between activities starts a new session. You can also start and end a named run yourself.');
+    const panel = this.panel('Sessions & hunts', 'Neverquest groups saved activity into sessions, including older records. A gap between activities starts a new session. You can also start and end a hunt yourself.');
     const sources = this.s.savedSources ?? [];
     if (sources.length > 1 || (this.s.demo && sources.length)) this.form(panel,
       [{ name: 'source', label: 'Saved character', options: sources.map(s => [s.id, `${s.character} · ${s.server}`]), value: this.s.sourceId }],
@@ -45,19 +119,19 @@ export const flows = {
     const automatic = this.s.sessions.filter(s => s.kind === 'automatic');
     const edits = this.s.preferences.sessionEdits?.[this.s.sourceId];
     if (edits?.splits?.length || edits?.merges?.length) panel.append(this.button('Restore automatic grouping', async () => {
-      if (await this.act('session:reset')) this.drawer('Session history', () => this.history());
+      if (await this.act('session:reset')) this.drawer('Hunt history', () => this.history());
     }));
     for (const session of [...this.s.sessions].reverse()) {
       const events = scopeEvents(this.s.events, { session }), valuation = valueLoot(events, this.s.prices);
       const card = this.e('article', 'task-card');
-      card.append(this.e('h3', '', session.name), this.e('p', 'help', `${session.kind === 'automatic' ? 'Automatic ledger session · ' : 'Named run · '}${stamp(session.startedAt)} · ${stamp(session.endedAt)}`),
+      card.append(this.e('h3', '', session.name), this.e('p', 'help', `${session.kind === 'automatic' ? 'Automatic ledger session · ' : 'Hunt · '}${stamp(session.startedAt)} · ${stamp(session.endedAt)}`),
         this.e('p', '', `${events.filter(e => e.act === 'act_13').reduce((n, e) => n + e.quantity, 0)} items · ${formatMoney(valuation.value)} estimated vendor value${valuation.unpriced ? ` · ${valuation.unpriced} unpriced` : ''}`));
       const actions = this.e('div', 'button-row');
       actions.append(this.button('Revisit', () => {
         $('day-select').value = ''; $('session-select').value = session.id; $('session-select').dispatchEvent(new Event('change'));
         document.querySelector('[data-view="All"]').click(); this.detailDialog.close();
-      }), this.button('Rename', () => this.drawer(session.kind === 'automatic' ? 'Rename session' : 'Rename run', () => {
-        const rename = this.panel(session.kind === 'automatic' ? 'Session name' : 'Run name');
+      }), this.button('Rename', () => this.drawer(session.kind === 'automatic' ? 'Rename session' : 'Rename hunt', () => {
+        const rename = this.panel(session.kind === 'automatic' ? 'Session name' : 'Hunt name');
         this.form(rename, [{ name: 'name', label: 'Name', value: session.name, required: true }], 'Save name', async v => {
           const next = await this.act('session:rename', { id: session.id, name: v.name }); if (next) this.detailDialog.close();
         });
@@ -66,14 +140,14 @@ export const flows = {
         const previous = automatic[automatic.findIndex(s => s.id === session.id) - 1];
         if (previous) actions.append(this.button('Merge with previous…', () => this.sessionMerge(previous, session)));
         if (session.lastActivityAt > session.startedAt) actions.append(this.button('Split session…', () => this.sessionSplit(session)));
-      }
+      } else actions.append(this.button('Hunt summary', () => this.huntDetails(session.id)));
       card.append(actions); panel.append(card);
     }
     if (this.s.sessions.length >= 2) {
-      const comparison = this.panel('Compare sessions or runs');
+      const comparison = this.panel('Compare sessions or hunts');
       const options = this.s.sessions.map(s => [s.id, s.name]);
-      this.form(comparison, [{ name: 'a', label: 'First session or run', options },
-        { name: 'b', label: 'Second session or run', options, value: options[1][0] }], 'Compare', v => {
+      this.form(comparison, [{ name: 'a', label: 'First session or hunt', options },
+        { name: 'b', label: 'Second session or hunt', options, value: options[1][0] }], 'Compare', v => {
         comparison.querySelector('.comparison-result')?.remove(); const result = this.e('div', 'comparison-result comparison-cards');
         for (const run of compareSessions(this.s.events, [v.a, v.b].map(id => this.s.sessions.find(s => s.id === id)), this.s.prices)) {
           const card = this.e('article', 'task-card');
@@ -86,17 +160,17 @@ export const flows = {
   },
   sessionMerge(left, right) {
     this.drawer('Merge sessions', () => {
-      const panel = this.panel('Combine these sessions', 'Combine the activity into one session using the earlier name. Ledger records and named runs stay unchanged.');
+      const panel = this.panel('Combine these sessions', 'Combine the activity into one session using the earlier name. Ledger records and hunts stay unchanged.');
       panel.append(this.e('p', '', `${left.name} · ${stamp(left.startedAt)} → ${right.name} · ${stamp(right.startedAt)}`));
       panel.append(this.button('Merge these sessions', async () => {
-        if (await this.act('session:merge', { id: left.id, nextId: right.id })) this.drawer('Session history', () => this.history());
+        if (await this.act('session:merge', { id: left.id, nextId: right.id })) this.drawer('Hunt history', () => this.history());
       }, 'primary'));
     });
   },
   sessionSplit(session) {
     this.drawer('Split session', () => {
       const current = this.s.sessions.find(s => s.id === session.id && s.kind === 'automatic');
-      if (!current) { this.panel('This session changed', 'Reopen session history and choose a current session.'); return; }
+      if (!current) { this.panel('This session changed', 'Reopen hunt history and choose a current session.'); return; }
       const events = scopeEvents(this.s.events, { session: current }).sort((a, b) => a.at - b.at);
       const times = [...new Set(events.map(e => e.at))]; let suggested = times[1], gap = -1;
       for (let i = 1; i < times.length; i++) if (times[i] - times[i - 1] > gap) { gap = times[i] - times[i - 1]; suggested = times[i]; }
@@ -107,7 +181,7 @@ export const flows = {
         value: toInput(suggested), min: toInput(times[0]), max: toInput(times.at(-1)), required: true }], 'Split this session', async v => {
         const at = splitPoint(events, new Date(v.at).getTime());
         if (at === null) { this.message('Choose a time after the first record and before the last record.'); return; }
-        if (await this.act('session:split', { id: current.id, at })) this.drawer('Session history', () => this.history());
+        if (await this.act('session:split', { id: current.id, at })) this.drawer('Hunt history', () => this.history());
       });
       const preview = this.e('p', 'help'); panel.append(preview);
       const input = form.elements.namedItem('at');

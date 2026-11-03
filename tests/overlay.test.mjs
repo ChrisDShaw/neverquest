@@ -112,3 +112,27 @@ test('loot overlays keep following recent loot after a named adventure ends', ()
   assert.equal(overlayScope(data, 'loot').events.length, 11);
   assert.equal(overlayScope(data, 'session').caption, 'Current run');
 });
+
+test('hunt overlay follows the active or latest manual hunt and scopes zero-loot members and payments', () => {
+  const data = { ...snapshot(), character: 'Rowan', sourceId: 'test' };
+  data.sessions.push({ id: 'auto', kind: 'automatic', startedAt: at - 100000, endedAt: at + 1, active: true });
+  assert.equal(overlayView(data, 'hunt', 520).hunt, null, 'An automatic session is not an explicitly started hunt');
+  const hunt = { id: 'hunt', name: 'Ruins', kind: 'manual', startedAt: at - 10000, endedAt: null, members: ['Rowan', 'Mira'] };
+  data.sessions.push(hunt);
+  let view = overlayView(data, 'hunt', 520);
+  assert.equal(view.hunt.id, 'hunt'); assert.equal(view.huntSummary.players.length, 2);
+  assert.equal(view.huntSummary.players[1].value, 0); assert.equal(view.huntSummary.total, 99);
+  assert.equal(view.entries.filter(entry => entry.type === 'payment').length, 1);
+  assert.equal(view.huntSummary.running, true);
+  const key = overlayContentKey(data, 'hunt', view);
+  data.dataRevision = 100; data.preferences = { page: 'market' };
+  assert.equal(overlayContentKey(data, 'hunt', overlayView(data, 'hunt', 520)), key);
+  hunt.members.push('Thorne');
+  assert.notEqual(overlayContentKey(data, 'hunt', overlayView(data, 'hunt', 520)), key);
+  assert.ok(overlayView(data, 'hunt', 290).capacity < view.capacity);
+  hunt.endedAt = at + 1;
+  view = overlayView(data, 'hunt', 520);
+  assert.equal(view.huntSummary.running, false); assert.match(view.caption, /Finished/);
+  const next = { ...hunt, id: 'next', endedAt: null, startedAt: at + 1 }; data.sessions.push(next);
+  assert.equal(overlayView(data, 'hunt', 520).hunt.id, 'next');
+});

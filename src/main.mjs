@@ -41,7 +41,7 @@ function snapshot() { return { ...active.snapshot(), demo: active === demo, data
   audioTarget: window ? 'main' : panels.keys().next().value,
   mapZone: active === demo ? { zone: active.source?.events.find(e => e.zone)?.zone ?? '', source: 'Ledger' }
     : currentMapZone ?? { zone: active.source?.events.find(e => e.zone)?.zone ?? '', source: 'Ledger' },
-  overlaySettings: Object.fromEntries(['loot', 'session', 'timers', 'map'].map(kind => [kind, overlaySettings(kind)])),
+  overlaySettings: Object.fromEntries(['loot', 'hunt', 'session', 'timers', 'map'].map(kind => [kind, overlaySettings(kind)])),
   savedSources: real.data.sources.map(({ events, ...s }) => ({ ...s, count: events.length })) }; }
 
 function overlaySettings(kind) {
@@ -152,6 +152,7 @@ const assets = new Map([
   ['/app.mjs', ['app.mjs', 'text/javascript']], ['/model.mjs', ['model.mjs', 'text/javascript']],
   ['/analysis.mjs', ['analysis.mjs', 'text/javascript']], ['/workbench.mjs', ['workbench.mjs', 'text/javascript']],
   ['/flows.mjs', ['flows.mjs', 'text/javascript']],
+  ['/hunts.mjs', ['hunts.mjs', 'text/javascript']],
   ['/requests.mjs', ['requests.mjs', 'text/javascript']],
   ['/overlay.html', ['overlay.html', 'text/html']], ['/overlay.css', ['overlay.css', 'text/css']],
   ['/overlay.mjs', ['overlay.mjs', 'text/javascript']], ['/overlay-model.mjs', ['overlay-model.mjs', 'text/javascript']],
@@ -226,6 +227,11 @@ handle('history:select', async id => {
   await real.select(id); active = real; revision++; applyProfile(); return snapshot();
 });
 handle('report:copy', scope => { clipboard.writeText(active.report(scope)); return 'Report copied to clipboard.'; });
+handle('hunt:copy', (id, part, expectedText, sourceId) => {
+  if (sourceId !== active.sourceId) throw new Error('The character changed. Reopen the hunt summary and try again.');
+  clipboard.writeText(active.huntMessage(id, part, expectedText));
+  return 'Hunt message copied.';
+});
 handle('settings:export', async () => {
   const selection = await dialog.showSaveDialog(window, { title: 'Export companion settings', defaultPath: 'neverquest-settings.json', filters: [{ name: 'JSON', extensions: ['json'] }] });
   if (selection.canceled) return null;
@@ -265,10 +271,10 @@ handle('map:open', async selectedZone => {
   await shell.openExternal(url); return `Opened the atlas for ${zone}.`;
 });
 handle('panel:open', kind => {
-  if (!['loot', 'session', 'timers', 'map'].includes(kind)) throw new Error('Unknown panel.');
+  if (!['loot', 'hunt', 'session', 'timers', 'map'].includes(kind)) throw new Error('Unknown panel.');
   if (panels.has(kind)) { if (!smokeTest) revealOverlay(panels.get(kind)); return 'Overlay opened.'; }
-  const size = { loot: { width: 340, height: 280 }, session: { width: 330, height: 195 }, timers: { width: 320, height: 240 }, map: { width: 560, height: 430 } }[kind];
-  const panel = new BrowserWindow({ ...size, minWidth: kind === 'map' ? 340 : 240, minHeight: kind === 'map' ? 260 : kind === 'session' ? 180 : 110, show: false,
+  const size = { loot: { width: 340, height: 280 }, hunt: { width: 410, height: 520 }, session: { width: 330, height: 195 }, timers: { width: 320, height: 240 }, map: { width: 560, height: 430 } }[kind];
+  const panel = new BrowserWindow({ ...size, minWidth: kind === 'map' ? 340 : kind === 'hunt' ? 320 : 240, minHeight: kind === 'map' ? 260 : kind === 'hunt' ? 290 : kind === 'session' ? 180 : 110, show: false,
     title: `Neverquest · ${kind}`, frame: false, transparent: true, backgroundColor: '#00000000',
     hasShadow: false, thickFrame: false, resizable: false, maximizable: false, fullscreenable: false,
     skipTaskbar: true, alwaysOnTop: overlaySettings(kind).pinned, autoHideMenuBar: true,
@@ -283,12 +289,20 @@ handle('panel:configure', (kind, background, pinned) => configureOverlay(active,
 handle('panel:close', kind => { panels.get(kind)?.close(); return true; });
 handle('panel:resize', (kind, width, height) => {
   if (!panels.has(kind) || !Number.isFinite(width) || !Number.isFinite(height)) throw new Error('Invalid overlay size.');
-  const size = { width: Math.round(Math.max(kind === 'map' ? 340 : 240, Math.min(1200, width))), height: Math.round(Math.max(kind === 'map' ? 260 : kind === 'session' ? 180 : 110, Math.min(1000, height))) };
+  const size = { width: Math.round(Math.max(kind === 'map' ? 340 : kind === 'hunt' ? 320 : 240, Math.min(1200, width))), height: Math.round(Math.max(kind === 'map' ? 260 : kind === 'hunt' ? 290 : kind === 'session' ? 180 : 110, Math.min(1000, height))) };
   panels.get(kind).setBounds(size); return size;
 });
 handle('window:show-main', async () => {
   if (!window) await createWindow();
   window.show(); window.focus(); return true;
+});
+handle('window:show-hunt', async (id, sourceId) => {
+  if (sourceId !== active.sourceId) throw new Error('The character changed. Try opening the current hunt again.');
+  if (id) active.hunt(id);
+  if (!window) await createWindow();
+  window.webContents.send('hunt:show', { id, sourceId });
+  if (!smokeTest) { window.show(); window.focus(); }
+  return true;
 });
 handle('market:get', manual => market.get(manual === true), false);
 handle('market:open', async item => {

@@ -1,5 +1,6 @@
 import { dayKey, summarize } from './model.mjs';
 import { scopeEvents, valueLoot, itemKey } from './analysis.mjs';
+import { huntSummary } from './hunts.mjs';
 
 export function overlayScope(snapshot, kind = 'session') {
   const session = snapshot.sessions.find(s => s.endedAt === null) ?? snapshot.sessions.find(s => s.kind === 'automatic' && s.active)
@@ -12,6 +13,15 @@ export function overlayRows(height, rowHeight) {
   return Math.max(1, Math.min(12, Math.floor((height - 63) / rowHeight)));
 }
 export function overlayView(snapshot, kind, height) {
+  if (kind === 'hunt') {
+    const hunts = snapshot.sessions.filter(s => s.kind !== 'automatic');
+    const hunt = hunts.find(s => s.endedAt === null) ?? hunts.at(-1) ?? null;
+    const summary = hunt ? huntSummary(hunt, snapshot.events, snapshot.prices, snapshot.character) : null;
+    const entries = summary ? [...summary.players.map(player => ({ type: 'member', ...player })),
+      ...summary.payments.map(payment => ({ type: 'payment', ...payment }))] : [];
+    return { hunt, huntSummary: summary, entries, capacity: Math.max(1, Math.min(24, Math.floor((height - 210) / 34))),
+      caption: hunt ? `${summary.running ? 'Live' : 'Finished'} · ${hunt.name}` : 'No hunt yet' };
+  }
   const scope = overlayScope(snapshot, kind), summary = summarize(scope.events), value = valueLoot(scope.events, snapshot.prices);
   const capacity = overlayRows(height, kind === 'timers' ? 46 : 39);
   const loot = scope.events.filter(e => ['act_13', 'act_14'].includes(e.act));
@@ -25,6 +35,7 @@ export function overlayView(snapshot, kind, height) {
 // Stable snapshots must keep the same DOM nodes and native hit-test regions.
 export function overlayContentKey(snapshot, kind, view) {
   const source = [snapshot.sourceId, snapshot.demo, kind, view.caption];
+  if (kind === 'hunt') return JSON.stringify([...source, view.hunt?.id, view.capacity, view.huntSummary]);
   if (kind === 'session') return JSON.stringify([...source, view.summary.items, view.value.value, view.value.unpriced,
     view.summary.purses, view.summary.unknownPurses, view.summary.vendorNet, view.summary.unknownVendors]);
   if (kind === 'timers') return JSON.stringify([...source, view.capacity, view.timerCount,

@@ -161,8 +161,9 @@ function render() {
     else $('day-select').value = days[0] ?? '';
     resetPeriod = false;
   }
-  $('running-session').textContent = running ? `Named run: ${running.name}` : 'Sessions are logged automatically';
+  $('running-session').textContent = running ? `Hunt: ${running.name}` : 'Sessions are logged automatically';
   $('start-adventure').hidden = Boolean(running); $('end-adventure').hidden = !running;
+  $('hunt-summary').hidden = !snapshot.sessions?.some(s => s.id === $('session-select').value && s.kind !== 'automatic');
   $('open-map').hidden = !atlasUrl(snapshot.events.find(e => e.zone)?.zone);
   const period = periodEvents();
   const summary = summarize(period);
@@ -287,9 +288,11 @@ $('search').addEventListener('input', () => { limit = 60; renderFeed(); });
 $('activity-filter').addEventListener('change', () => { view = $('activity-filter').value; limit = 60; renderFeed(); rememberView(); });
 $('start-adventure').addEventListener('click', () => workbench.startAdventure());
 $('end-adventure').addEventListener('click', async () => {
-  const running = snapshot.sessions.find(s => s.endedAt === null); if (running) await workbench.act('session:end', { id: running.id });
+  const running = snapshot.sessions.find(s => s.endedAt === null);
+  if (running && await workbench.act('session:end', { id: running.id })) workbench.huntDetails(running.id);
 });
-$('past-adventures').addEventListener('click', () => workbench.drawer('Session history', () => workbench.history()));
+$('hunt-summary').addEventListener('click', () => workbench.huntDetails($('session-select').value));
+$('past-adventures').addEventListener('click', () => workbench.drawer('Hunt history', () => workbench.history()));
 $('open-timers').addEventListener('click', () => workbench.drawer('Timers', () => workbench.timerQuick()));
 $('open-overlays').addEventListener('click', () => workbench.overlayPicker());
 $('open-map').addEventListener('click', async () => { const result = await call(() => api.openMap()); if (result) workbench.message(result); });
@@ -337,6 +340,12 @@ document.addEventListener('keydown', event => {
   if (event.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName) && !$('source-dialog').open) {
     event.preventDefault(); $('search').focus();
   }
+});
+api.onShowHunt(async request => {
+  const next = await call(() => api.getSnapshot());
+  if (!next || next.sourceId !== request.sourceId) return;
+  accept(next);
+  if (request.id) workbench.huntDetails(request.id); else workbench.startAdventure();
 });
 accept(await call(() => api.getSnapshot()));
 setInterval(async () => { if (!busy && !$('source-dialog').open) accept(await call(() => api.getSnapshot(), { polling: true })); }, 2000);
