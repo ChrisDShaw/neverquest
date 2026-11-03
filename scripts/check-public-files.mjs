@@ -16,7 +16,8 @@ export function inspectPublicFile(filename, text = '') {
   if (path.isAbsolute(filename) || parts.includes('..') || parts.slice(0, -1).some(p => privateDirectories.has(p))
       || dataFile.test(parts.at(-1)) || privateExtension.test(lower) || /^\.env(?:\.|$)/.test(parts.at(-1)) && parts.at(-1) !== '.env.example')
     reasons.push('Private, generated or game-data path');
-  const allowed = rootFiles.has(lower) || /^(?:src|scripts|tests)\/[a-z0-9_./-]+\.(?:mjs|cjs|html|css)$/.test(lower)
+  const allowed = rootFiles.has(lower) || ['docs/images/neverquest.gif', 'docs/images/overlays.png'].includes(lower)
+    || /^(?:src|scripts|tests)\/[a-z0-9_./-]+\.(?:mjs|cjs|html|css)$/.test(lower)
     || /^docs\/[a-z0-9_./-]+\.md$/.test(lower) || /^\.github\/(?:workflows\/[a-z0-9_-]+\.ya?ml|[a-z0-9_./-]+\.md)$/.test(lower);
   if (!allowed) reasons.push('File is outside the public source allowlist');
   if (/[a-z]:[\\/]+Users[\\/]+[^\\/\s'"<>]+|\/(?:Users|home)\/[^/\s'"<>]+/i.test(text)) reasons.push('Personal absolute path');

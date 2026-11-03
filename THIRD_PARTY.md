@@ -1,6 +1,6 @@
 # Third-party notices and data sources
 
-Neverquest’s original code uses the [MIT licence](LICENSE). Dependencies, game content and downloaded data keep their own licences. The public source includes no game artwork or downloaded community map images.
+Neverquest’s original code uses the [MIT licence](LICENSE). Dependencies, game content and downloaded data keep their own licences. The app bundles no game artwork or community map images. The README’s overlay screenshot shows a community map with its on-screen attribution.
 
 ## Electron runtime
 

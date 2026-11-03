@@ -18,6 +18,9 @@ test('public source guard rejects saved data, game files, credentials and unexpe
     assert.ok(inspectPublicFile(file).length, file);
   assert.deepEqual(inspectPublicFile('src/core/ledger.mjs', 'export const example = 1;'), []);
   assert.deepEqual(inspectPublicFile('.github/workflows/checks.yml', 'name: Checks'), []);
+  assert.deepEqual(inspectPublicFile('docs/images/neverquest.gif'), []);
+  assert.deepEqual(inspectPublicFile('docs/images/overlays.png'), []);
+  assert.ok(inspectPublicFile('docs/images/private-screenshot.png').length);
 });
 
 test('public source guard detects identifying absolute paths and strong credential patterns without needing a personal denylist', () => {

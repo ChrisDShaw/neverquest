@@ -4,6 +4,8 @@ Neverquest is a Windows companion for **Monsters & Memories**. Keep track of loo
 
 This is an early source build. You’ll need Node.js to run it; there’s no installer yet.
 
+![Neverquest’s Adventure dashboard, Market and Timers.](docs/images/neverquest.gif)
+
 ## Get started
 
 Install Node.js 22.12 or newer and npm, then run these commands from the project folder:
@@ -69,6 +71,8 @@ Choose the built-in bell or a local WAV, MP3 or OGG file for sounds. Neverquest 
 Settings exports include appearance preferences, goals, alerts, item decisions and reference notes. They leave out ledger history, goal progress, character-folder paths and window positions. Preview an import before applying it. Imported goals start fresh, and custom sound files stay on the original PC.
 
 ## Use overlays while you play
+
+![a screenshot of the available overlays](docs/images/overlays.png)
 
 Open **Adventure → Overlays** or **Preferences → Overlays** for recent loot, session totals, timers or the zone map.
 
