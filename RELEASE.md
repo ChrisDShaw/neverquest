@@ -20,10 +20,11 @@ npm test
 npm run check
 npm run check:public
 npm audit
+npm audit --omit=dev
 ```
 
 - [ ] Fix test and syntax failures, and review any dependency audit findings. Check the impact of dependency changes before applying them.
-- [ ] Confirm that [Source checks](.github/workflows/checks.yml) passes for the release commit on every configured Windows/Node.js combination. The source workflow skips install scripts; desktop verification below requires the Electron runtime.
+- [ ] Confirm that [Source checks](.github/workflows/checks.yml) passes for the release commit on every configured Windows/Node.js combination, and [Windows installer](.github/workflows/windows-build.yml) builds and passes both smoke checks. Dependency lifecycle scripts stay disabled; Electron is installed explicitly for desktop checks.
 - [ ] Confirm that the package version and lockfile agree with the intended release version.
 
 ## Windows desktop verification
@@ -56,11 +57,31 @@ Run `npm run smoke` after installing the Electron runtime. It uses isolated inve
 
 ## Distribution
 
-Neverquest currently runs from source. Source releases should link to the [README](README.md) for setup instructions. There’s no installer, code signing or automated packaging yet.
+Build locally on Windows:
 
-For any future packaged build:
+```powershell
+npm ci
+npm exec --no -- install-electron
+npm run dist
+npm run smoke:packaged
+npm run release:checksums
+```
+
+`dist/` contains `Neverquest-Setup-<version>.exe`, its `.blockmap`, `latest.yml` and `SHA256SUMS.txt`. Publish all four together. Do not upload `builder-debug.yml` or the unpacked application directory. No signing credentials are needed for the default unsigned build; state that status in the release notes. Source users can continue following the README.
+
+For a release, update the package and lockfile version together (`npm version <version> --no-git-tag-version`), write `docs/releases/<version>.md`, commit the intended files, then push a matching stable `v<version>` tag. The Windows workflow validates the version and notes, builds with a read-only token, and uses a separate job to create a **draft** release. Review and test the draft’s exact installer before publishing it on GitHub. Drafts are not offered to installed clients.
+
+Use one stable update channel. Never replace assets on a published version or reuse a tag. Fix a bad release with a higher version. Do not change the app ID, product name, installer identity or `%APPDATA%\Neverquest` path casually: these are part of upgrade continuity.
+
+For each packaged build:
 
 - [ ] Include only the intended app files. Leave out development tests, caches, saves and private data.
 - [ ] Preserve Electron's `LICENSE`, `LICENSES.chromium.html` and applicable dependency notices.
 - [ ] Check the final package for private data and test it from a clean Windows account.
 - [ ] Publish checksums for the distributed files and state their signing status clearly.
+- [ ] Verify the installer’s clean-account install, shortcuts, launch and uninstall; confirm uninstall preserves test records.
+- [ ] Test upgrading a previous installed version to the candidate with invented history, goals, notes, pins and window settings. Check explicit restart and normal-quit installation, including with overlays open.
+- [ ] Check interrupted/offline downloads, a missing release, a failed installer launch and insufficient disk space. Confirm failures leave the current app usable.
+- [ ] Confirm update metadata names the uploaded installer and the checksums match the final assets. Finish uploading assets before publishing the draft.
+- [ ] Confirm an unsigned build is labelled unsigned and does not claim publisher verification. If signing is added, verify the final EXE/installer Authenticode signatures and expected publisher in `resources/app-update.yml`.
+- [ ] Keep a copy of the previous installer and test-data backup for recovery. Data-format changes need explicit versioned migrations and a separate pre-migration backup; the current update adds no format change.

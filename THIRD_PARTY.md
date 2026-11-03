@@ -4,7 +4,7 @@ Neverquest’s original code uses the [MIT licence](LICENSE). Dependencies, game
 
 ## Electron runtime
 
-The app’s only direct npm dependency is [Electron](https://www.electronjs.org/). Its version is pinned in `package.json` and `package-lock.json`. Electron uses the MIT licence, included below. Its dependencies keep their own licences. The lockfile records their exact versions and available licence details; installed packages include the licence texts.
+The app uses [Electron](https://www.electronjs.org/), pinned in `package.json` and `package-lock.json`. Electron uses the MIT licence, included below. Its dependencies keep their own licences. The lockfile records their exact versions and available licence details; installed packages include the licence texts.
 
 If you distribute a packaged app, include Electron’s `LICENSE`, `LICENSES.chromium.html` and any required dependency notices. Source releases leave out the installed runtime and `node_modules`.
 
@@ -32,6 +32,14 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
+## Packaging and updates
+
+[`electron-builder` 26.15.7 and `electron-updater` 6.8.9](https://github.com/electron-userland/electron-builder) use the MIT licence. The builder is development tooling; the updater and its production dependencies ship in the app. Their exact dependency versions are recorded in `package-lock.json`.
+
+`scripts/notices.mjs` collects installed production dependency licence files into `resources/THIRD-PARTY-LICENSES.txt` for each packaged build. The one reviewed package that omits a licence file, `lazy-val` 1.0.5, has its manifest-declared MIT notice and attribution in [docs/licenses/lazy-val.md](docs/licenses/lazy-val.md). Electron’s `LICENSE.electron.txt` and `LICENSES.chromium.html` remain beside the executable. NSIS and its helper tools retain the notices supplied by the packaging toolchain.
+
+The installer/update design was informed by [EverQuest Companion](https://github.com/jmoyers/everquest-companion). Neverquest’s implementation was written independently; no project code or assets were copied.
+
 ## External data and browser links
 
 | Source | How Neverquest uses it |
@@ -44,6 +52,6 @@ Before sharing downloaded images or data, check the original source’s terms an
 
 ## CI tooling
 
-The CI workflow uses GitHub’s official [checkout](https://github.com/actions/checkout/blob/v6/LICENSE) and [setup-node](https://github.com/actions/setup-node/blob/v6/LICENSE) actions, pinned to full commit hashes. Their own licence notices apply. They run the repository checks in CI and aren’t app dependencies.
+The CI workflows use GitHub’s official [checkout](https://github.com/actions/checkout/blob/v6/LICENSE), [setup-node](https://github.com/actions/setup-node/blob/v6/LICENSE) and [upload-artifact](https://github.com/actions/upload-artifact/blob/v4/LICENSE) actions, pinned to full commit hashes. Their own licence notices apply. They run repository checks and prepare releases in CI and aren’t app dependencies.
 
 Neverquest is an independent fan project and isn’t affiliated with or endorsed by Monsters & Memories or its developers. Game names and content belong to their respective owners.

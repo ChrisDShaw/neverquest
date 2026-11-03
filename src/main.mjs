@@ -4,6 +4,9 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+import os from 'node:os';
+import { Updates } from './core/updates.mjs';
 import { findCharacters, defaultRoot } from './core/folder.mjs';
 import { demoSnapshot } from './core/demo.mjs';
 import { LocalStore } from './core/store.mjs';
@@ -19,15 +22,20 @@ import { applyMainProfile } from './core/main-window.mjs';
 import { itemWikiUrl } from './core/wiki.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const smokeTest = process.argv.includes('--smoke-test');
+const packagedSmoke = process.argv.includes('--packaged-smoke-test');
+const smokeTest = packagedSmoke || process.argv.includes('--smoke-test');
 if (smokeTest) {
-  const directory = path.join(here, '..', '.local', 'smoke', randomUUID());
+  const directory = path.join(os.tmpdir(), 'neverquest-smoke', randomUUID());
   mkdirSync(directory, { recursive: true }); app.setPath('userData', directory);
 }
 const origin = 'app://neverquest';
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 app.enableSandbox();
 app.setName('Neverquest');
+app.setAppUserModelId('com.chrisdshaw.neverquest');
+const release = createRequire(import.meta.url)('../package.json').neverquestRelease ?? { signed: false };
+let updates, stopping = false, allowQuit = false;
+const pendingBounds = new Map();
 let window;
 let revision = 0;
 let offeredSources = [];
@@ -84,6 +92,7 @@ function handle(name, action, serialized = true) {
     const url = new URL(event.senderFrame.url);
     if (`${url.protocol}//${url.host}` !== origin || !['/index.html', '/overlay.html'].includes(url.pathname)) throw new Error('Untrusted request');
     if (url.pathname === '/overlay.html' && panels.get(url.searchParams.get('panel')) !== sender) throw new Error('Untrusted overlay');
+    if (stopping) return { ok: false, error: 'Neverquest is closing. Please wait for it to finish saving.' };
     const run = async () => {
       try { return { ok: true, value: await action(...args) }; }
       catch (error) { return { ok: false, error: error.message }; }
@@ -114,18 +123,24 @@ function createWindow() {
   });
   secureWindow(window);
   let boundsTimer;
+  const flushBounds = () => {
+    clearTimeout(boundsTimer); pendingBounds.delete(window);
+    if (!window || !active?.sourceId || window.isMinimized()) return;
+    const bounds = window.getBounds(), companion = active, id = active.sourceId;
+    queue = queue.catch(() => {}).then(async () => {
+      companion.data.profiles[id] = { ...companion.data.profiles[id], bounds };
+      await companion.store.save();
+    });
+    queue.catch(error => console.error('Could not save window layout:', error));
+  };
   const saveBounds = () => {
+    if (stopping) return;
     clearTimeout(boundsTimer);
-    boundsTimer = setTimeout(() => {
-      if (!window || !active?.sourceId || window.isMinimized()) return;
-      const bounds = window.getBounds(), companion = active, id = active.sourceId;
-      queue = queue.catch(() => {}).then(async () => {
-        companion.data.profiles[id] = { ...companion.data.profiles[id], bounds };
-        await companion.store.save();
-      }).catch(error => console.error('Could not save window layout:', error));
-    }, 500);
+    pendingBounds.set(window, flushBounds);
+    boundsTimer = setTimeout(flushBounds, 500);
   };
   window.on('resize', saveBounds); window.on('move', saveBounds);
+  window.on('close', flushBounds);
   window.on('closed', () => { window = undefined; });
   const loaded = window.loadURL(`${origin}/index.html`);
   applyProfile();
@@ -137,6 +152,10 @@ function createWindow() {
 if (!app.requestSingleInstanceLock()) app.exit(0);
 app.on('second-instance', () => { if (window) { window.show(); window.focus(); } else createWindow(); });
 app.whenReady().then(async () => {
+const enabled = app.isPackaged && process.platform === 'win32' && !smokeTest;
+const updater = app.isPackaged && process.platform === 'win32' ? (await import('electron-updater')).default.autoUpdater : null;
+updates = new Updates({ updater, enabled, version: app.getVersion(), signed: release.signed === true,
+  publish: status => { for (const target of ownWindows) if (!target.isDestroyed()) target.webContents.send('updates:status', status); } });
 real = new Companion(await new LocalStore(app.getPath('userData')).load());
 demo = new Companion(new LocalStore());
 demo.data.sources.push({ id: 'demo', character: 'Rowan', server: 'Demo realm', directory: '', events: demoSnapshot().events });
@@ -145,7 +164,10 @@ demo.live = { files: 2, invalidRows: 0, problems: [] };
 active = demo;
 market = await new MarketClient(app.getPath('userData')).load();
 mapCache = await new MapCache(path.join(app.getPath('userData'), 'maps')).load();
-if (smokeTest) { const { prepareSources } = await import('./smoke-fixtures.mjs'); await prepareSources(market, mapCache); }
+if (packagedSmoke) {
+  const refuse = async () => { throw new Error('Packaged smoke checks must stay offline.'); };
+  market.fetcher = refuse; mapCache.fetcher = refuse;
+} else if (smokeTest) { const { prepareSources } = await import('./smoke-fixtures.mjs'); await prepareSources(market, mapCache); }
 // Serve only this explicit list of local UI files. No arbitrary filesystem paths cross the bridge.
 const assets = new Map([
   ['/index.html', ['index.html', 'text/html']], ['/style.css', ['style.css', 'text/css']],
@@ -154,6 +176,7 @@ const assets = new Map([
   ['/flows.mjs', ['flows.mjs', 'text/javascript']],
   ['/hunts.mjs', ['hunts.mjs', 'text/javascript']],
   ['/requests.mjs', ['requests.mjs', 'text/javascript']],
+  ['/updates.mjs', ['updates.mjs', 'text/javascript']],
   ['/overlay.html', ['overlay.html', 'text/html']], ['/overlay.css', ['overlay.css', 'text/css']],
   ['/overlay.mjs', ['overlay.mjs', 'text/javascript']], ['/overlay-model.mjs', ['overlay-model.mjs', 'text/javascript']],
   ['/sessions.mjs', ['sessions.mjs', 'text/javascript']], ['/market-view.mjs', ['market-view.mjs', 'text/javascript']],
@@ -186,6 +209,24 @@ session.defaultSession.webRequest.onBeforeRequest((details, callback) => callbac
 session.defaultSession.on('will-download', event => event.preventDefault());
 
 handle('ledger:get', refresh);
+handle('app:info', () => appInfo(), false);
+handle('updates:check', () => updates.check(), false);
+handle('updates:install', () => installUpdate(true), false);
+handle('app:link', async kind => {
+  const links = { releases: 'https://github.com/ChrisDShaw/neverquest/releases',
+    issues: 'https://github.com/ChrisDShaw/neverquest/issues/new/choose' };
+  if (!Object.hasOwn(links, kind)) throw new Error('Choose a release or support link.');
+  if (!smokeTest) await shell.openExternal(links[kind]);
+  return 'Opened in your browser.';
+});
+handle('app:diagnostics', async () => {
+  if (smokeTest) return diagnostics();
+  const selection = await dialog.showSaveDialog(window, { title: 'Save diagnostic report', defaultPath: 'neverquest-diagnostics.json', filters: [{ name: 'JSON', extensions: ['json'] }] });
+  if (selection.canceled) return null;
+  assertOutsideGame(selection.filePath);
+  await writeFile(selection.filePath, JSON.stringify(diagnostics(), null, 2));
+  return 'Diagnostic report saved. You can review the file before sharing it.';
+});
 handle('ledger:choose', async () => {
   const selection = await dialog.showOpenDialog(window, {
     title: 'Choose a character folder or its Ledger folder', properties: ['openDirectory'], defaultPath: defaultRoot()
@@ -335,10 +376,24 @@ try {
   }
 } catch { /* First launch or moved folder: use the clearly labelled demo. */ }
 await createWindow();
+updates.start();
 if (smokeTest) {
   try {
-    const { verifyUI } = await import('./smoke.mjs');
-    await verifyUI(window, panels, demo);
+    if (packagedSmoke) {
+      await window.webContents.executeJavaScript(`(async () => {
+        const info = await window.companion.appInfo();
+        const snapshot = await window.companion.getSnapshot();
+        if (!info.ok || !info.value.packaged || info.value.update.state !== 'disabled') throw new Error('Packaged app identity or update isolation failed');
+        if (!snapshot.ok || !snapshot.value.demo || window.require !== undefined) throw new Error('Packaged demo or renderer isolation failed');
+        document.querySelector('[data-page=settings]').click();
+        if (!document.querySelector('#workbench').textContent.includes('About & updates')) throw new Error('Packaged update controls did not load');
+        const goal = await window.companion.action('goal:save', { item: 'Invented packaging item', target: 2 }, snapshot.value.sourceId);
+        if (!goal.ok) throw new Error('Packaged IPC action failed');
+      })()`);
+    } else {
+      const { verifyUI } = await import('./smoke.mjs');
+      await verifyUI(window, panels, demo);
+    }
     console.log('Neverquest Electron smoke test passed.'); app.exit(0);
   } catch (error) { console.error(error); app.exit(1); }
 }
@@ -350,6 +405,43 @@ app.on('activate', () => { if (!window) createWindow(); });
 });
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+app.on('before-quit', event => {
+  if (allowQuit || smokeTest || !real) return;
+  event.preventDefault();
+  if (stopping) return;
+  const closing = updates.status.state === 'ready' ? installUpdate(false) : settleSaves().then(() => { allowQuit = true; app.quit(); });
+  closing.catch(error => {
+    stopping = false; allowQuit = false;
+    dialog.showErrorBox('Neverquest could not close safely', `Please try again. Your current saved files have been kept.\n${error.message}`);
+    if (!window) createWindow();
+  });
+});
+
+function appInfo() {
+  return { version: app.getVersion(), packaged: app.isPackaged, signed: release.signed === true,
+    publisher: release.publisher ?? null, update: updates.snapshot() };
+}
+function diagnostics() {
+  // Deliberate allowlist: no error stacks, paths, game records or installation identifiers.
+  const { state, checkedAt } = updates.snapshot();
+  return { version: app.getVersion(), packaged: app.isPackaged, signed: release.signed === true,
+    platform: process.platform, architecture: process.arch, osVersion: os.release(),
+    runtime: { electron: process.versions.electron, chrome: process.versions.chrome, node: process.versions.node },
+    update: { state, checkedAt } };
+}
+async function settleSaves() {
+  stopping = true;
+  for (const flush of [...pendingBounds.values()]) flush();
+  await queue;
+  await real.store.queue;
+}
+async function installUpdate(restart) {
+  try {
+    await updates.install(async () => { await settleSaves(); allowQuit = true; }, restart);
+    updates.stop();
+    return 'Restarting Neverquest…';
+  } catch (error) { stopping = false; allowQuit = false; throw error; }
+}
 
 function assertOutsideGame(filename) {
   const roots = [defaultRoot(), ...real.data.sources.map(s => path.basename(s.directory).toLowerCase() === 'ledger' ? path.dirname(s.directory) : s.directory)];

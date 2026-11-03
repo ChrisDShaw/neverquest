@@ -3,6 +3,7 @@ import { scopeEvents, valueLoot, playerBreakdown, gathering } from './analysis.m
 import { Workbench } from './workbench.mjs';
 import { atlasUrl } from './maps.mjs';
 import { Requests } from './requests.mjs';
+import { UpdateView } from './updates.mjs';
 
 const $ = id => document.getElementById(id);
 const api = window.companion;
@@ -18,10 +19,12 @@ let signature = '';
 let resetPeriod = false;
 let restoringProfile = false;
 let rememberTimer;
-const workbench = new Workbench({ api, call, accept, getSnapshot: () => snapshot, getPeriod: periodEvents, element,
+const updates = new UpdateView({ api, call, element });
+const workbench = new Workbench({ api, call, accept, updates, getSnapshot: () => snapshot, getPeriod: periodEvents, element,
   onPage: page => rememberView(page) });
 const seenNotifications = new Set();
 const toasts = element('div', 'toast-stack'); toasts.setAttribute('aria-live', 'polite'); document.body.append(toasts);
+void updates.start();
 function rememberView(page = '') {
   if (restoringProfile || !snapshot) return;
   clearTimeout(rememberTimer);
@@ -79,7 +82,10 @@ async function call(action, { polling = false } = {}) {
   busy = requests.busy;
   return operation.finally(() => {
     busy = requests.busy;
-    if (!busy) document.querySelectorAll('button').forEach(b => { b.disabled = false; });
+    if (!busy) {
+      document.querySelectorAll('button').forEach(b => { b.disabled = false; });
+      updates.paint();
+    }
   });
 }
 

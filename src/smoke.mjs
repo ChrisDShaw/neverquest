@@ -22,6 +22,16 @@ export async function verifyUI(window, panels, demo) {
     const initial = await window.companion.getSnapshot();
     assert(initial.ok && initial.value.demo && initial.value.sourceId === 'demo', 'Demo bridge must initialize');
     assert(initial.value.sessions.some(s => s.kind === 'automatic'), 'Sessions must be logged without manual start/stop');
+    const info = await window.companion.appInfo();
+    assert(info.ok && info.value.update.state === 'disabled', 'Smoke builds must never request app updates');
+    await wait(() => $('#app-version').textContent.includes(info.value.version));
+    const diagnostics = await window.companion.exportDiagnostics();
+    assert(diagnostics.ok && diagnostics.value.version === info.value.version, 'Diagnostics must contain the real app version');
+    assert(!JSON.stringify(diagnostics.value).includes('Rowan') && !('directory' in diagnostics.value), 'Diagnostics must exclude character data and paths');
+    assert(!(await window.companion.openAppLink('https://example.invalid')).ok, 'Support bridge must reject arbitrary links');
+    await click($('[data-page=settings]'));
+    assert($('#workbench').textContent.includes('About & updates') && $('#workbench').textContent.includes('Unsigned build'), 'Preferences must show update controls and accurate signing status');
+    await click($('[data-view=All]'));
     await click($('[data-page=market]'));
     await wait(() => $('#workbench .market-results')?.textContent.includes('Rat Tooth'));
     await click(button($('#workbench'), 'Buying'));

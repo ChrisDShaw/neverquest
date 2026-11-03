@@ -19,13 +19,27 @@ npm start
 
 `npm ci` installs the locked dependencies. The pinned Electron package has no install script; `npm exec --no -- install-electron` uses its local installer to download the official runtime and verify it against the package’s bundled checksums by default. Run both commands before running the app or the smoke test locally. Electron can also download the runtime on first launch if it is missing.
 
-CI uses `npm ci --ignore-scripts` for tests and syntax checks, which don’t need the Electron binary, and skips the separate runtime installation step.
+`.npmrc` disables dependency lifecycle scripts for both local and CI installs. Source checks need no Electron binary. The Windows installer workflow installs the runtime explicitly and runs both source and packaged smoke checks.
+
+## Build a Windows installer
+
+```powershell
+npm run dist
+npm run smoke:packaged
+npm run release:checksums
+```
+
+`npm run dist:dir` builds only the unpacked application for quick checks. Packaging generates the app’s compass icon and runtime dependency notices, includes the explicit source allowlist and production dependencies, and writes installers to ignored `dist/`. The icon and notice intermediates live in ignored `build/`. No transpilation or frontend framework is required.
+
+The builder and updater are pinned to compatible 26.x/6.x versions that support unsigned Windows NSIS installs. Review the installed APIs and signing requirements before a major upgrade. The current build dependency audit reports moderate minimatch denial-of-service findings in tooling; these are not runtime dependencies. Avoid npm’s suggested forced downgrade of the entire builder. Run `npm audit --omit=dev` to assess shipped dependencies separately.
+
+`electron-builder.config.cjs` owns the stable app ID, installer identity and fixed GitHub update source. Default builds are unsigned and show this status in Preferences. Future signing can use `NEVERQUEST_PUBLISHER` (certificate subject), `CSC_LINK` (PFX location or base64 certificate) and `CSC_KEY_PASSWORD`; set both publisher and certificate or leave both absent. Signing builds require successful signing and embed the expected publisher for update verification. Keep credentials outside Git. CI currently builds unsigned and requires no signing secrets.
 
 ## Test your changes
 
 Tests use Node’s built-in runner and invented game records. Add tests when changing parsing, saved data or security behaviour. Choose checks that verify useful behaviour; avoid tests that simply repeat the implementation.
 
-Run `npm run smoke` on a Windows desktop to check app workflows in Electron. It uses a separate data folder under `.local/smoke`, invented game records and fake market and map data. Keep it isolated: it must not read real game files, contact providers, open browser links, use the clipboard or capture the screen.
+Run `npm run smoke` on a Windows desktop to check app workflows in Electron. It uses a unique `neverquest-smoke` folder in the OS temporary directory, invented game records and fake market and map data. Keep it isolated: it must not read real game files, contact providers, open browser links, use the clipboard or capture the screen. `npm run smoke:packaged` checks the unpacked app’s startup, renderer isolation, IPC, update UI and runtime dependency loading without making update requests.
 
 The smoke test covers item details, goals, decisions, notes, hunts, session editing, bookmarks, gathering, timers, audio and overlays. It also checks navigation and that the renderer has no Node access. Follow the manual checks in [RELEASE.md](RELEASE.md) to check appearance and desktop interaction too.
 

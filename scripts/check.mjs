@@ -13,4 +13,6 @@ async function check(directory) {
   }
 }
 await check('src'); await check('scripts'); await check('tests');
+const config = spawnSync(process.execPath, ['--check', 'electron-builder.config.cjs'], { stdio: 'inherit', windowsHide: true });
+if (config.status !== 0) process.exit(config.status ?? 1);
 console.log('JavaScript syntax checks passed.');

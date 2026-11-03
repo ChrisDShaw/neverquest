@@ -2,11 +2,17 @@
 
 Neverquest is a Windows companion for **Monsters & Memories**. Keep track of loot, compare player asking prices, collect items for quests and crafting, and save useful notes. Your game records stay on your PC.
 
-This is an early source build. You’ll need Node.js to run it; there’s no installer yet.
+Windows installer builds are now supported. Download `Neverquest-Setup-<version>.exe` from [Releases](https://github.com/ChrisDShaw/neverquest/releases) when a packaged release is available. Builds are unsigned: Windows may show an **Unknown publisher** or SmartScreen warning. Node.js is only needed for development.
 
 ![Neverquest’s Adventure dashboard, Market and Timers.](docs/images/neverquest.gif)
 
 ## Get started
+
+For an installer build, run the setup file. It installs for your Windows account, adds shortcuts, and opens Neverquest. Windows x64 is the packaged target. Saved data stays in `%APPDATA%\Neverquest`, including after uninstalling.
+
+Installed builds check GitHub Releases shortly after launch and every four hours, download new stable versions, and show **Update ready — Restart**. Restart when convenient, or let the update install when you quit. Neverquest finishes pending saves first. **Preferences → About & updates** has a manual check, release notes, support links, and a diagnostic export. Source and smoke-test builds never check for app updates. Until the first packaged release is published, update checks can report that no release is available.
+
+To run from source instead:
 
 Install Node.js 22.12 or newer and npm, then run these commands from the project folder:
 
@@ -110,24 +116,29 @@ Neverquest checks the selected character’s ledger and archive every two second
 
 Game files are read-only. The app reads Character and Social ledgers and their archive, plus zoning messages from `Player.log` while the map is open. It doesn’t monitor the game process, inspect game windows, read keyboard input or upload your records. Automatic character switching uses ledger file timestamps.
 
-Character history and companion records are saved in `%APPDATA%\Neverquest` on Windows. The main save is `collection.json`, with the previous version in `collection.json.bak`. If saved history can’t be read, Neverquest reports the problem and leaves the file untouched.
+Character history and companion records are saved in `%APPDATA%\Neverquest` on Windows. The main save is `collection.json`, with the previous version in `collection.json.bak`. If saved history can’t be read, Neverquest reports the problem and leaves the file untouched. Updates preserve this folder and the current save format.
+
+Update checks and downloads contact GitHub and its release-asset hosts. GitHub receives ordinary connection information and the updater’s random staging identifier; no ledger records, character names or local game paths are sent. There is no usage analytics. Diagnostic reports are saved locally only when requested and contain app/runtime versions, Windows version, architecture, signing status and update status. Review them before sharing.
 
 Ledgers don’t provide combat statistics, continuous XP tracking, player positions or a guaranteed complete party list. Import both Character and Social ledgers: Neverquest removes duplicate copies while keeping repeated actions within a file.
 
 ## Development and checks
 
-Neverquest uses Electron, Node built-ins and browser APIs. Electron 45.2.1 is the only direct dependency. Versions are pinned in `package.json` and `package-lock.json`. There’s no analytics or automatic updater.
+Neverquest uses Electron 45.2.1, Node built-ins and browser APIs. `electron-updater` 6.8.9 supplies app updates; `electron-builder` 26.15.7 creates Windows installers. Direct versions and the full dependency tree are locked. Dependency lifecycle scripts are disabled by `.npmrc`; install the Electron runtime explicitly as shown above.
 
 ```powershell
 npm test
 npm run check
 npm run check:public
 npm run smoke
+npm run dist
+npm run smoke:packaged
+npm run release:checksums
 ```
 
-The tests cover ledger reading, saved history, sessions, prices, goals, settings and download safeguards. The Electron smoke test uses isolated sample data and hidden app windows. Desktop smoke and manual Windows checks remain pending for this early build. Windows CI is configured for Node 22.12 and Node 24; hosted CI has not yet run.
+The tests cover ledger reading, saved history, sessions, prices, goals, settings, downloads and update/save ordering. Source and packaged smoke checks use isolated sample data and hidden windows. Installer files are written to `dist/`. Windows source CI covers Node 22.12 and Node 24; the Windows installer workflow builds on Node 24 and creates a draft release for matching version tags. See [RELEASE.md](RELEASE.md) for publication and upgrade verification.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, implementation details and testing guidance, [RELEASE.md](RELEASE.md) for the release checklist, and the [0.2.0 release notes](docs/releases/0.2.0.md) for changes and verification status.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and testing guidance, [RELEASE.md](RELEASE.md) for the release checklist, and the [0.3.0 release notes](docs/releases/0.3.0.md) for changes and verification status.
 
 ## Licence and data sources
 

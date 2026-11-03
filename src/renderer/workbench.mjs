@@ -168,6 +168,7 @@ export class Workbench {
     audio.play().catch(() => this.message('We couldn’t play that sound. Try a different WAV, MP3 or OGG file.'));
   }
   settings() {
+    this.updates.mount(this.panel('About & updates'));
     const sessions = this.panel('Automatic sessions', 'Neverquest groups recorded activity into sessions. A gap between activities starts a new session. Session duration can differ from your total time in the game. Hunts are optional.');
     this.form(sessions, [{ name: 'minutes', label: 'Start a new session after a gap of (minutes)', type: 'number', min: 10, max: 180,
       value: this.s.preferences.sessionGapMinutes ?? 30, required: true }], 'Save session setting', v => this.act('session:gap', { minutes: Number(v.minutes) }));

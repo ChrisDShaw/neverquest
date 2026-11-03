@@ -12,7 +12,17 @@ Map downloads start **off**. Turn on **Allow map downloads** in the map overlay 
 
 This switch controls maps only. Market listings and links you choose to open in your browser have separate network access. Map and market requests send no ledger records, log text or private pins. Map requests tell the provider which map you requested.
 
-Downloaded maps and listings are untrusted data. Neverquest checks them before use and doesn’t install or run other companion tools. The sections below explain those checks and what they can’t protect against.
+Downloaded maps and listings are untrusted data. Neverquest checks them before use. The sections below explain those checks and what they can’t protect against.
+
+## Application updates
+
+Installed Windows builds use `electron-updater` with a fixed GitHub provider: `ChrisDShaw/neverquest`. It checks stable releases over HTTPS after launch and every four hours. Release downloads may redirect to GitHub’s asset hosting. The updater uses its own Electron network session; the renderer’s network restrictions remain in place. Source and smoke builds disable update requests.
+
+Downloads are checked against SHA-512 values in release metadata. Current installers are **unsigned**; these hashes detect corruption but do not prove publisher identity or protect against a compromised repository or release account. GitHub and the release account are part of the trust boundary. The app never claims an unsigned update has a verified publisher. Future signed builds embed an expected publisher and require Authenticode verification through the updater.
+
+Updates are staged until the user restarts or quits. Pending collection writes finish before the installer starts; failed saves stop the restart. Automatic downgrades and prerelease updates are disabled. There is no app account, usage analytics or game-data upload. The updater can send its generated staging identifier and ordinary HTTP/connection information to GitHub.
+
+**Save diagnostic report** exports an allowlisted local JSON report: app and runtime versions, OS version, architecture, signing status, update state and last-check time. It includes no identifiers, error stacks, paths or game data and uploads nothing.
 
 ## How downloads are checked
 
@@ -46,4 +56,4 @@ Leave map downloads off to avoid map network requests. If you also want to avoid
 
 `npm test` covers malicious URLs, redirects, content-type mismatches, disguised files, size limits, malformed images, changed caches, path traversal, offline use, cancellation and image-only protocol access. `npm run check` checks JavaScript syntax.
 
-`npm run smoke` checks Electron workflows with isolated invented data, including image decoding, offline maps, item decisions, session editing and overlay layout. It needs the Electron runtime and a Windows desktop. Smoke and manual Windows checks remain pending for this early build. Record completed checks for each release using [RELEASE.md](RELEASE.md).
+`npm run smoke` checks Electron workflows with isolated invented data, including image decoding, offline maps, item decisions, session editing and overlay layout. `npm run smoke:packaged` checks the packaged app with updates disabled. These need the Electron runtime and a Windows desktop. Record completed checks and outstanding installed-upgrade checks for each release using [RELEASE.md](RELEASE.md).

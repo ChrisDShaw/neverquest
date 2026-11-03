@@ -4,8 +4,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const rootFiles = new Set(['.gitignore', '.gitattributes', '.editorconfig', '.env.example', 'license', 'readme.md', 'security.md',
-  'contributing.md', 'third_party.md', 'release.md', 'package.json', 'package-lock.json']);
-const localDirectories = new Set(['.git', '.local', 'node_modules', 'coverage', 'dist', 'out', 'release', '.codex', '.agents', '.aws']);
+  'contributing.md', 'third_party.md', 'release.md', 'package.json', 'package-lock.json', '.npmrc', 'electron-builder.config.cjs']);
+const localDirectories = new Set(['.git', '.local', 'node_modules', 'coverage', 'dist', 'out', 'release', 'build', '.codex', '.agents', '.aws']);
 const privateDirectories = new Set([...localDirectories, 'ledger', 'archive', 'journal']);
 const dataFile = /^(?:collection\.json(?:\..*)?|preferences\.json|market\.json|catalogue\.json|integrity\.json|network\.json|pins\.json|chats\.json|windows\.json|controls\.json|.*_(?:character|social)_.*\.json)$/i;
 const privateExtension = /\.(?:log|db(?:-.*)?|sqlite(?:3|-.*)?|pem|key|pfx|p12)$/i;
