@@ -1,5 +1,31 @@
 // Real Chromium renderer + IPC, using isolated demo data. No game files or screen capture.
 export async function verifyUI(window, panels, demo) {
+  // Invented mismatch: exercise the warning and deliberate-selection route without
+  // discovering real characters or moving any saved hunt to a different owner.
+  const originalActivityCheck = demo.checkCharacterActivity;
+  demo.checkCharacterActivity = async () => {
+    demo.characterActivity = { state: 'different', selectedLastActive: Date.now() - 120000,
+      recent: { id: 'invented-candidate', character: 'Mira', server: 'Demo realm', lastActive: Date.now() - 1000 } };
+    return demo.characterActivity;
+  };
+  try {
+    await window.webContents.executeJavaScript(`(async () => {
+      const wait = async predicate => {
+        for (let i = 0; i < 120; i++) { if (predicate()) return; await new Promise(r => setTimeout(r, 50)); }
+        throw new Error('Character warning did not update');
+      };
+      const button = title => [...document.querySelectorAll('#detail-dialog button')].find(b => b.textContent === title);
+      await wait(() => document.querySelector('#mode-badge').textContent === 'DEMO DATA' && !document.querySelector('#start-adventure').disabled);
+      document.querySelector('#start-adventure').click();
+      await wait(() => !!button('Keep Rowan selected'));
+      if (document.querySelector('#detail-dialog form.bench-form')) throw new Error('Mismatch must be acknowledged before the hunt form appears');
+      if (document.querySelector('#character-warning').hidden || !button('Switch to Mira')) throw new Error('Mismatch needs a visible switch action');
+      button('Keep Rowan selected').click();
+      await wait(() => !!document.querySelector('#detail-dialog form.bench-form'));
+      if (!document.querySelector('#detail-dialog').textContent.includes('Start a hunt for Rowan')) throw new Error('Hunt owner must be explicit');
+      document.querySelector('#detail-dialog').close();
+    })()`);
+  } finally { demo.checkCharacterActivity = originalActivityCheck; demo.characterActivity = null; }
   const scenario = async () => {
     const assert = (condition, message) => { if (!condition) throw new Error(message); };
     const wait = async predicate => {
@@ -93,6 +119,7 @@ export async function verifyUI(window, panels, demo) {
     // Solo hunts default to one member; a completed hunt can become a group settlement.
     await click($('[data-view=All]'));
     await click($('#start-adventure'));
+    await wait(() => $('#detail-dialog').open && $('#detail-dialog').textContent.includes('Start a hunt for Rowan'));
     const yesterday = new Date(Date.now() - 86400000);
     const local = new Date(yesterday.getTime() - yesterday.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     await submit($('#detail-dialog'), { name: 'Smoke adventure', start: local });
@@ -101,11 +128,15 @@ export async function verifyUI(window, panels, demo) {
     await click($('#end-adventure'));
     await wait(() => $('#end-adventure').hidden && $('#detail-dialog').textContent.includes('Solo hunt'));
     assert(!button($('#detail-dialog'), 'Copy settlement'), 'Solo hunts must not offer group settlement');
+    assert(button($('#detail-dialog'), 'Copy loot summary'), 'Ended solo hunts must still offer a copy for unpriced loot');
+    assert($('#detail-dialog .hunt-message').textContent.includes('unpriced'), 'Ended loot summaries must flag missing prices');
     await click(button($('#detail-dialog'), 'Add group members'));
     await submit($('#detail-dialog'), { members: 'Rowan\nMira\nThorne\nElowen\nBram\nSable' });
     await wait(() => $('#detail-dialog').textContent.includes('6 hunt members'));
     assert($('#detail-dialog').textContent.includes('Sable'), 'Members with no loot must remain in the split');
     assert(!button($('#detail-dialog'), 'Copy settlement'), 'Unpriced items must block settlement copying');
+    assert(button($('#detail-dialog'), 'Copy loot summary'), 'Ended group hunts must keep an unpriced loot copy');
+    assert(!$('#detail-dialog .hunt-message').textContent.includes('Pay'), 'An unpriced summary must omit payment instructions');
     for (const item of ['Rat Tooth', 'Bone Chips', 'Wool Scraps', 'Crocodile Tooth', 'Weathered Medallion']) {
       const form = [...document.querySelectorAll('#detail-dialog form.bench-form')].find(f => f.textContent.includes(item));
       form.closest('details').open = true;
@@ -124,6 +155,7 @@ export async function verifyUI(window, panels, demo) {
     assert($('#stat-items').textContent === '6', 'The saved run must retain its finds');
 
     await click($('#start-adventure'));
+    await wait(() => $('#detail-dialog').open && $('#detail-dialog').textContent.includes('Start a hunt for Rowan'));
     await submit($('#detail-dialog'), { name: 'A second run' });
     await wait(() => !$('#detail-dialog').open && !$('#end-adventure').hidden);
     await click($('#end-adventure')); await wait(() => $('#end-adventure').hidden);
@@ -250,6 +282,28 @@ export async function verifyUI(window, panels, demo) {
         if (!opened) await new Promise(resolve => setTimeout(resolve, 50));
       }
       if (!opened) throw new Error('Overlay must open the matching live hunt in the companion');
+      await panel.webContents.executeJavaScript(`(async () => {
+        const state = (await window.companion.getSnapshot()).value;
+        const hunt = state.sessions.find(s => s.kind !== 'automatic' && s.endedAt === null);
+        for (const [command, payload] of [
+          ['hunt:price', { id: hunt.id, item: 'Weathered Medallion', mode: 'vendor' }],
+          ['session:end', { id: hunt.id }]
+        ]) {
+          const result = await window.companion.action(command, payload, state.sourceId);
+          if (!result.ok) throw new Error(result.error);
+        }
+        for (let i = 0; i < 100; i++) {
+          if (document.querySelector('.hunt-copy')?.textContent.includes('Copy loot summary')) return;
+          await new Promise(r => setTimeout(r, 50));
+        }
+        throw new Error('Ending an unpriced hunt must preserve the overlay copy button');
+      })()`);
+      let endedCopy = false;
+      for (let i = 0; i < 100 && !endedCopy; i++) {
+        endedCopy = await window.webContents.executeJavaScript("!![...document.querySelectorAll('#detail-dialog button')].find(b => b.textContent === 'Copy loot summary') && !document.querySelector('#detail-dialog .hunt-message')?.textContent.includes('Pay')");
+        if (!endedCopy) await new Promise(r => setTimeout(r, 50));
+      }
+      if (!endedCopy) throw new Error('Ended hunt details must retain a copyable summary without payments');
       await window.webContents.executeJavaScript("document.querySelector('#detail-dialog').close()");
     }
     if (kind === 'map') {

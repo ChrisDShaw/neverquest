@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { huntSummary, huntMessages, shortMoney, validateMembers, huntMembers } from '../src/renderer/hunts.mjs';
+import { huntSummary, huntMessages, shortMoney, validateMembers, huntMembers, huntCopyLabel } from '../src/renderer/hunts.mjs';
 import { Companion } from '../src/core/companion.mjs';
 import { LocalStore } from '../src/core/store.mjs';
 
@@ -54,7 +54,9 @@ test('unpriced items block settlement, zero is a price, and explicit exclusions 
   const unknown = [...events, loot('Mira', 2, { item: 'Test ring' })];
   const summary = huntSummary(hunt, unknown, prices, 'Rowan');
   assert.equal(summary.unpriced, 2); assert.deepEqual(summary.payments, []);
-  assert.throws(() => huntMessages(summary), /unpriced/);
+  const messages = huntMessages(summary);
+  assert.match(messages.join(' '), /2 unpriced/); assert.match(messages.join(' '), /split pending prices/);
+  assert.doesNotMatch(messages.join(' '), /Pay/);
   const priced = huntSummary({ ...hunt, itemValues: { 'test ring': 0 } }, unknown, prices, 'Rowan');
   assert.equal(priced.unpriced, 0); assert.equal(priced.excluded, 0); assertSettled(priced);
   const excluded = huntSummary({ ...hunt, itemValues: { 'test ring': null } }, unknown, prices, 'Rowan');
@@ -130,7 +132,10 @@ test('hunt setup and prices survive restart; stale copies and foreign-character 
   await loaded.action('hunt:price', { id, item: 'Test tooth', mode: 'custom', unit: 200 });
   assert.throws(() => loaded.huntMessage(id, 0, message), /values changed/);
   await loaded.action('hunt:price', { id, item: 'Test tooth', mode: 'vendor' });
-  assert.throws(() => loaded.huntMessage(id, 0, message), /unpriced/);
+  assert.throws(() => loaded.huntMessage(id, 0, message), /values changed/);
+  const unpricedMessage = huntMessages(huntSummary(loaded.hunt(id), events, [], 'Rowan'))[0];
+  assert.match(unpricedMessage, /unpriced/);
+  assert.equal(loaded.huntMessage(id, 0, unpricedMessage), unpricedMessage);
   loaded.sourceId = 'another';
   await assert.rejects(loaded.action('hunt:members', { id, members }), /Choose a character/);
   app.data.sources.push({ id: 'b', character: 'Other', server: 'test', events: [] }); app.sourceId = 'b';
@@ -146,6 +151,24 @@ test('running copies label provisional payments and omit payments until prices a
   const unknown = huntMessages(huntSummary(active, [...events, loot('Sable', 2, { item: 'Test ring' })], prices, 'Rowan'));
   assert.match(unknown.join(' '), /2 unpriced/); assert.match(unknown.join(' '), /split pending prices/);
   assert.doesNotMatch(unknown.join(' '), /Pay/); assert.ok(unknown.every(message => message.length <= 240));
+});
+
+test('ended hunts retain copyable unpriced loot summaries, including paginated group reports', () => {
+  const unpriced = [...events, loot('Sable', 2, { item: 'Test ring' })];
+  const active = huntSummary({ ...hunt, endedAt: null }, unpriced, prices, 'Rowan');
+  const ended = huntSummary(hunt, unpriced, prices, 'Rowan');
+  assert.equal(huntCopyLabel(active), 'Copy running summary');
+  assert.equal(huntCopyLabel(ended), 'Copy loot summary');
+  assert.deepEqual(ended.players, active.players);
+  const message = huntMessages(ended).join(' ');
+  assert.match(message, /Loot value 12s \+ 2 unpriced/);
+  assert.match(message, /split pending prices/); assert.doesNotMatch(message, /Pay|so far/);
+  const many = Array.from({ length: 24 }, (_, i) => `Member${String(i).padStart(2, '0')}${'x'.repeat(40)}`);
+  const summary = huntSummary({ ...hunt, members: many }, many.map(name => loot(name, 1, { item: 'Test ring' })), [], many[0]);
+  const messages = huntMessages(summary);
+  assert.ok(messages.length > 1 && messages.every(text => text.length <= 240));
+  assert.ok(many.every(name => messages.some(text => text.includes(name))));
+  assert.doesNotMatch(messages.join(' '), /Pay/);
 });
 
 test('overlay member actions merge into the current roster and always keep the owner', async () => {

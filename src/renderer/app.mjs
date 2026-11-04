@@ -97,7 +97,7 @@ function accept(next) {
   pinned = next.profile?.pinned === true;
   $('pin-button').setAttribute('aria-pressed', String(pinned));
   if (next.notice) notice = next.notice;
-  const nextSignature = JSON.stringify([next.revision, next.dataRevision, next.files, next.invalidRows, next.problems,
+  const nextSignature = JSON.stringify([next.revision, next.dataRevision, next.files, next.invalidRows, next.problems, next.characterActivity,
     next.events.map(e => e.identity)]);
   if (nextSignature !== signature) {
     signature = nextSignature;
@@ -136,6 +136,13 @@ function render() {
   $('mode-badge').textContent = demo ? 'DEMO DATA' : 'LOCAL LEDGER';
   $('demo-banner').hidden = !demo;
   $('connection-status').textContent = demo ? 'Showing demo data' : snapshot.problems.length ? 'Couldn’t read the ledger · trying again' : 'Checking for new activity';
+  const recent = snapshot.characterActivity?.state === 'different' ? snapshot.characterActivity.recent : null;
+  $('character-warning').hidden = !recent;
+  if (recent) {
+    $('character-warning-text').textContent = `You’re viewing ${character} · ${server}. ${recent.character} · ${recent.server} has newer ledger activity. Hunts started here belong to ${character}.`;
+    $('switch-recent-character').textContent = `Switch to ${recent.character}`;
+    $('connection-status').textContent = 'Another character has newer activity';
+  }
   $('source-label').textContent = demo ? 'DEMO · NO GAME FILES CONNECTED' : `${snapshot.files} FILES · ${snapshot.directory}`;
   $('source-label').title = snapshot.directory;
 
@@ -335,6 +342,10 @@ $('find-characters').addEventListener('click', async () => {
   }
 });
 $('demo-button').addEventListener('click', async () => accept(await call(() => api.useDemo())));
+$('switch-recent-character').addEventListener('click', async () => {
+  const recent = snapshot.characterActivity?.recent;
+  if (recent) accept(await call(() => api.selectRecentCharacter(snapshot.sourceId, recent.id)));
+});
 $('pin-button').addEventListener('click', async () => {
   const result = await call(() => api.pin(!pinned));
   if (result !== null) {

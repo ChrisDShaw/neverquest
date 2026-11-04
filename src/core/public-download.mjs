@@ -11,7 +11,7 @@ export function publicUrl(value) {
 export async function publicResponse(fetcher, address, { accept, headers = {}, signal } = {}) {
   const url = publicUrl(address);
   const response = await fetcher(url, { method: 'GET', redirect: 'error', credentials: 'omit',
-    referrerPolicy: 'no-referrer', headers: { Accept: accept, 'User-Agent': 'Neverquest/0.3.0', ...headers },
+    referrerPolicy: 'no-referrer', headers: { Accept: accept, 'User-Agent': 'Neverquest/0.3.2', ...headers },
     signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(30000)]) : AbortSignal.timeout(30000) });
   if (response.redirected || (response.url && response.url !== url)) {
     await response.body?.cancel().catch(() => {});

@@ -84,5 +84,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Could not download the verified installer.' }
           $version = $env:RELEASE_TAG.Substring(1)
           $assets = @(Get-ChildItem -LiteralPath dist -File | ForEach-Object { $_.FullName })
-          gh release create $env:RELEASE_TAG @assets --verify-tag --draft --title "Neverquest $version" --notes-file "docs/releases/$version.md"
+          $notes = Get-Content -LiteralPath "docs/releases/$version.md" -Raw
+          $checksums = Get-Content -LiteralPath dist/SHA256SUMS.txt -Raw
+          $releaseNotes = $notes.TrimEnd() + "`n`n## SHA-256 checksums`n`n" + '```text' + "`n" + $checksums.TrimEnd() + "`n" + '```' + "`n"
+          $notesPath = Join-Path $env:RUNNER_TEMP 'neverquest-release-notes.md'
+          Set-Content -LiteralPath $notesPath -Value $releaseNotes -Encoding utf8
+          gh release create $env:RELEASE_TAG @assets --verify-tag --draft --title "Neverquest $version" --notes-file $notesPath
           if ($LASTEXITCODE -ne 0) { throw 'Could not create the draft release. Review existing drafts before retrying.' }

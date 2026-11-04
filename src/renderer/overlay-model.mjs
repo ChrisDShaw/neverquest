@@ -15,7 +15,8 @@ export function overlayRows(height, rowHeight) {
 export function overlayView(snapshot, kind, height) {
   if (kind === 'hunt') {
     const hunts = snapshot.sessions.filter(s => s.kind !== 'automatic');
-    const hunt = hunts.find(s => s.endedAt === null) ?? hunts.at(-1) ?? null;
+    const hunt = hunts.find(s => s.endedAt === null)
+      ?? [...hunts].sort((a, b) => b.endedAt - a.endedAt || b.startedAt - a.startedAt)[0] ?? null;
     const summary = hunt ? huntSummary(hunt, snapshot.events, snapshot.prices, snapshot.character) : null;
     const entries = summary ? [...summary.players.map(player => ({ type: 'member', ...player })),
       ...summary.payments.map(payment => ({ type: 'payment', ...payment }))] : [];

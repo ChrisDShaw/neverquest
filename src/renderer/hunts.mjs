@@ -85,9 +85,13 @@ export function shortMoney(value) {
   }).join(' ');
 }
 
+export function huntCopyLabel(summary) {
+  return summary.running ? 'Copy running summary' : summary.unpriced ? 'Copy loot summary'
+    : summary.players.length > 1 ? 'Copy settlement' : 'Copy hunt summary';
+}
+
 // Return copyable game-chat messages, never silently truncate a name or payment.
 export function huntMessages(summary, limit = 240) {
-  if (summary.unpriced && !summary.running) throw new Error('Price or explicitly exclude every unpriced item before copying.');
   const share = summary.unpriced ? 'split pending prices' : summary.remainder ? `${shortMoney(summary.baseShare)} each + ${summary.remainder}c remainder`
     : `${shortMoney(summary.baseShare)} each`;
   const heading = `${summary.running ? 'Loot so far' : 'Loot value'} ${shortMoney(summary.total)}${summary.unpriced ? ` + ${summary.unpriced} unpriced` : ''} (${share})${summary.excluded ? `, ${summary.excluded} items excluded` : ''}`;

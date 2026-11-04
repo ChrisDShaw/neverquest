@@ -41,6 +41,7 @@ Run `npm run smoke` after installing the Electron runtime. It uses isolated inve
 - [ ] Copied hunt messages use p/g/s/c, omit coin drops and fit within 240 characters including page numbers; verify pasting in game manually.
 - [ ] The hunt overlay supports adding/removing members, preserves typed names during polling, and opens the matching hunt details.
 - [ ] Running hunt copies mark provisional values and omit payments for unpriced loot; new overlays default to 100% background opacity while saved choices are preserved.
+- [ ] End a solo and group hunt with unpriced loot. Confirm hunt details and the hunt overlay retain **Copy loot summary**, showing unpriced counts without payment instructions. Complete pricing and confirm settlement copying is available.
 - [ ] Loot, session, timer and map overlays open, move and resize; pinning works; backgrounds at 0%, 15% and 100% keep text solid and windows visible.
 - [ ] Hover over and click overlay backgrounds and controls while the app checks for updates. Confirm the overlay and its settings stay visible, main-window preference saves do not cover it, and reopening raises the existing overlay.
 - [ ] Check overlay interaction with the game in windowed mode. Test borderless mode separately if available and record which display modes were tested.
@@ -67,7 +68,7 @@ npm run smoke:packaged
 npm run release:checksums
 ```
 
-`dist/` contains `Neverquest-Setup-<version>.exe`, its `.blockmap`, `latest.yml` and `SHA256SUMS.txt`. Publish all four together. Do not upload `builder-debug.yml` or the unpacked application directory. No signing credentials are needed for the default unsigned build; state that status in the release notes. Source users can continue following the README.
+`dist/` contains `Neverquest-Setup-<version>.exe`, its `.blockmap`, `latest.yml` and `SHA256SUMS.txt`. Publish all four together. The release workflow appends the downloaded build artifact’s SHA-256 checksums to the draft’s release notes. Do not hardcode a local installer’s hash into source release notes: a CI rebuild can produce different bytes. Do not upload `builder-debug.yml` or the unpacked application directory. No signing credentials are needed for the default unsigned build; state that status in the release notes. Source users can continue following the README.
 
 For a release, update the package and lockfile version together (`npm version <version> --no-git-tag-version`), write `docs/releases/<version>.md`, commit the intended files, then push a matching stable `v<version>` tag. The Windows workflow validates the version and notes, builds with a read-only token, and uses a separate job to create a **draft** release. Review and test the draft’s exact installer before publishing it on GitHub. Drafts are not offered to installed clients.
 

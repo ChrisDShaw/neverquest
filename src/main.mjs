@@ -209,6 +209,17 @@ session.defaultSession.webRequest.onBeforeRequest((details, callback) => callbac
 session.defaultSession.on('will-download', event => event.preventDefault());
 
 handle('ledger:get', refresh);
+handle('hunt:prepare', async expectedSourceId => {
+  if (expectedSourceId !== active.sourceId) throw new Error('The character changed. Reopen Start hunt.');
+  await active.refresh({ allowFollow: false });
+  await active.checkCharacterActivity({ force: true });
+  return snapshot();
+});
+handle('ledger:recent', async (expectedSourceId, candidateId) => {
+  if (active === demo || expectedSourceId !== active.sourceId) throw new Error('The character changed. Review the activity notice.');
+  await real.selectRecentCharacter(candidateId);
+  active = real; revision++; applyProfile(); return snapshot();
+});
 handle('app:info', () => appInfo(), false);
 handle('updates:check', () => updates.check(), false);
 handle('updates:install', () => installUpdate(true), false);

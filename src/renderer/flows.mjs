@@ -4,7 +4,7 @@ import { atlasUrl } from './maps.mjs';
 import { itemMarket, readMarket, snapshotAge } from './market-data.mjs';
 import { showMarketListings } from './market-view.mjs';
 import { splitPoint } from './sessions.mjs';
-import { huntMembers, huntSummary, huntMessages } from './hunts.mjs';
+import { huntMembers, huntSummary, huntMessages, huntCopyLabel } from './hunts.mjs';
 
 const $ = id => document.getElementById(id);
 const stamp = at => at === null ? 'Still running' : new Date(at).toLocaleString();
@@ -23,13 +23,35 @@ export const flows = {
       panel.append(buttons, this.e('p', 'help', 'Map downloads start off. Enable them in the map overlay to save community maps from MnMdb on this PC. Your pins stay private.'));
     });
   },
-  startAdventure() {
+  async startAdventure() {
+    const sourceId = this.getSnapshot().sourceId;
+    const prepared = await this.call(() => this.api.prepareHunt(sourceId));
+    if (!prepared) return;
+    this.accept(prepared);
+    let acknowledgedCharacterId;
     this.drawer('Start hunt', () => {
-      const panel = this.panel('Give your hunt a name', 'Track a solo hunt, or add group members, including anyone who loots nothing. Start now or choose an earlier time. Your character is included automatically.');
+      if (this.s.sourceId !== sourceId) {
+        this.panel('The selected character changed', 'Reopen Start hunt to review the current character.'); return;
+      }
+      const activity = this.s.characterActivity;
+      if (activity?.state === 'different' && acknowledgedCharacterId !== activity.recent.id) {
+        const recent = activity.recent;
+        const warning = this.panel('Check your character', `You’re viewing ${this.s.character} · ${this.s.server}. ${recent.character} · ${recent.server} has newer ledger activity at ${new Date(recent.lastActive).toLocaleTimeString()}.`);
+        warning.append(this.e('p', 'help', 'Switch to that character, or deliberately start a hunt for the character you’re viewing. Existing hunts stay with their original character.'));
+        warning.append(this.button(`Switch to ${recent.character}`, async () => {
+          const next = await this.call(() => this.api.selectRecentCharacter(sourceId, recent.id));
+          if (next) { this.accept(next); await this.startAdventure(); }
+        }, 'primary'), this.button(`Keep ${this.s.character} selected`, () => { acknowledgedCharacterId = recent.id; this.renderDrawer(); }));
+        return;
+      }
+      const panel = this.panel(`Start a hunt for ${this.s.character}`, `${this.s.server} · This hunt will use ${this.s.character}’s ledger. Add group members below, including anyone who loots nothing.`);
+      if (activity?.state === 'unknown') panel.append(this.e('p', 'help', 'We couldn’t compare character activity. Check that this is the character you intend to track.'));
       this.form(panel, [{ name: 'name', label: 'Hunt name', required: true },
         { name: 'start', label: 'Started at', type: 'datetime-local', value: localTime(), required: true },
         { name: 'members', label: 'Add group members (optional, one name per line)', type: 'textarea' }], 'Start hunt', async v => {
+        if (this.getSnapshot().sourceId !== sourceId) { this.message('The character changed. Reopen Start hunt before continuing.'); return; }
         const next = await this.act('session:start', { name: v.name, startedAt: new Date(v.start).getTime(),
+          acknowledgeCharacterId: acknowledgedCharacterId,
           members: v.members.split(/\r?\n/).map(name => name.trim()).filter(Boolean) });
         if (next) this.detailDialog.close();
       });
@@ -79,20 +101,19 @@ export const flows = {
         });
         panel.append(details);
       }
-      if (summary.unpriced) panel.append(this.e('p', 'help', 'Review item values: price or explicitly exclude all unpriced items before final settlement. A running summary can include unpriced items, with payments left out.'));
-      if (!summary.unpriced || summary.running) {
-        panel.append(this.e('h3', '', summary.running ? 'Copy running summary for game chat' : members.length > 1 ? 'Copy settlement for game chat' : 'Copy hunt summary for game chat'),
-          this.e('p', 'help', 'Item values only. Each message fits within 240 characters, using p, g, s and c. Values are vendor estimates unless you changed them above.'));
-        const sourceId = this.s.sourceId;
-        huntMessages(summary).forEach((message, part, messages) => {
-          const preview = this.e('p', 'hunt-message', message);
-          const button = this.button(messages.length === 1 ? summary.running ? 'Copy running summary' : members.length > 1 ? 'Copy settlement' : 'Copy hunt summary' : `Copy ${part + 1}/${messages.length}`, async () => {
-            const result = await this.call(() => this.api.copyHunt(id, part, message, sourceId));
-            if (result) this.message(result);
-          });
-          panel.append(preview, button);
+      if (summary.unpriced) panel.append(this.e('p', 'help', 'You can copy the loot summary now. Price or explicitly exclude all unpriced items before final settlement; payments are left out until then.'));
+      const copyLabel = huntCopyLabel(summary);
+      panel.append(this.e('h3', '', `${copyLabel} for game chat`),
+        this.e('p', 'help', 'Item values only. Each message fits within 240 characters, using p, g, s and c. Values are vendor estimates unless you changed them above.'));
+      const sourceId = this.s.sourceId;
+      huntMessages(summary).forEach((message, part, messages) => {
+        const preview = this.e('p', 'hunt-message', message);
+        const button = this.button(messages.length === 1 ? copyLabel : `Copy ${part + 1}/${messages.length}`, async () => {
+          const result = await this.call(() => this.api.copyHunt(id, part, message, sourceId));
+          if (result) this.message(result);
         });
-      }
+        panel.append(preview, button);
+      });
     });
   },
   huntMemberEditor(hunt) {

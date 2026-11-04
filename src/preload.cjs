@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld('companion', Object.freeze({
     return () => ipcRenderer.removeListener('updates:status', listener);
   },
   getSnapshot: () => ipcRenderer.invoke('ledger:get'),
+  prepareHunt: sourceId => ipcRenderer.invoke('hunt:prepare', sourceId),
+  selectRecentCharacter: (sourceId, candidateId) => ipcRenderer.invoke('ledger:recent', sourceId, candidateId),
   chooseFolder: () => ipcRenderer.invoke('ledger:choose'),
   discover: () => ipcRenderer.invoke('ledger:discover'),
   selectCharacter: id => ipcRenderer.invoke('ledger:select', id),

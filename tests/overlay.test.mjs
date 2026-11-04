@@ -136,3 +136,15 @@ test('hunt overlay follows the active or latest manual hunt and scopes zero-loot
   const next = { ...hunt, id: 'next', endedAt: null, startedAt: at + 1 }; data.sessions.push(next);
   assert.equal(overlayView(data, 'hunt', 520).hunt.id, 'next');
 });
+
+test('ending a backdated hunt keeps it in the overlay instead of returning to a later-started older hunt', () => {
+  const data = snapshot();
+  const recent = { id: 'backdated', name: 'Backdated hunt', kind: 'manual', startedAt: at - 30000, endedAt: null, members: ['Rowan'] };
+  const previous = { id: 'previous', name: 'Previous hunt', kind: 'manual', startedAt: at - 5000, endedAt: at - 1000, members: ['Rowan'] };
+  data.sessions.push(recent, previous);
+  assert.equal(overlayView(data, 'hunt', 520).hunt.id, recent.id);
+  recent.endedAt = at + 1;
+  const view = overlayView(data, 'hunt', 520);
+  assert.equal(view.hunt.id, recent.id); assert.equal(view.huntSummary.running, false);
+  assert.match(view.caption, /Finished.*Backdated hunt/);
+});

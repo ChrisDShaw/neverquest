@@ -12,6 +12,18 @@ For an installer build, run the setup file. It installs for your Windows account
 
 Installed builds check GitHub Releases shortly after launch and every four hours, download new stable versions, and show **Update ready — Restart**. Restart when convenient, or let the update install when you quit. Neverquest finishes pending saves first. **Preferences → About & updates** has a manual check, release notes, support links, and a diagnostic export. Source and smoke-test builds never check for app updates. Until the first packaged release is published, update checks can report that no release is available.
 
+### Verify a download
+
+Download `SHA256SUMS.txt` from the same release as the installer. Release notes also list the SHA-256 hashes for that release’s EXE, blockmap and `latest.yml`. In the download folder, run this command with your installer’s version:
+
+```powershell
+Get-FileHash .\Neverquest-Setup-0.3.2.exe -Algorithm SHA256
+```
+
+Compare its `Hash` with the matching filename in `SHA256SUMS.txt`; letter case does not matter. Use hashes from the same release: local and CI builds can produce different bytes, even from the same source version.
+
+### Run from source
+
 To run from source instead:
 
 Install Node.js 22.12 or newer and npm, then run these commands from the project folder:
@@ -54,11 +66,13 @@ The app includes editable quest and crafting notes for four starter items. Each 
 
 Choose **Start hunt** to track a solo hunt. Your character is included automatically; optionally add group members, one name per line, including anyone who loots nothing. You can start now or backdate the start. **End hunt** opens its summary. Use **Hunt summary** or **Hunt history** to reopen it. Older named runs remain available as hunts.
 
+The hunt form names the character it will track. If another character has newer ledger activity within the last 15 minutes, Neverquest warns you and offers to switch. You can explicitly keep the selected character for a backdated hunt. Activity is checked again when you start; timestamps indicate recent writes and do not prove who is logged in. The dashboard and overlays also flag newer activity for another character. Existing hunts always stay with their original character.
+
 For a group hunt, confirm the member list and open **Review item values** to check vendor estimates, enter agreed values per item in whole copper, or explicitly exclude an item. Unpriced items block settlement until resolved. Prices and exclusions apply only to that hunt. Members are treated as present for the whole hunt; nearby players outside the list are excluded.
 
 **Settle loot** assumes everyone keeps the items they looted. It suggests payments to equalise item value; coin drops are already shared evenly and do not affect those payments. Shares use whole copper, with any remainder assigned alphabetically. Vendor estimates can change with recorded sales; agreed overrides remain saved. Check values together before paying.
 
-**Copy settlement** produces item totals, each member’s item value and suggested payments in game-chat messages of at most 240 characters, using `p`, `g`, `s` and `c`. **Copy running summary** works before the hunt ends: values and payments are labelled as provisional. If prices are missing, it shows known values and unpriced counts without payments. Long summaries have separate numbered copy buttons. Solo hunts offer **Copy hunt summary** without payments. The broader **Copy summary** report remains available on the dashboard.
+**Copy settlement** produces item totals, each member’s item value and suggested payments in game-chat messages of at most 240 characters, using `p`, `g`, `s` and `c`. **Copy running summary** works before the hunt ends: values and payments are labelled as provisional. If prices are missing, it shows known values and unpriced counts without payments. After ending the hunt, **Copy loot summary** remains available for unpriced loot; payment instructions stay out until pricing is complete. Both hunt details and the overlay support this. Long summaries have separate numbered copy buttons. Priced solo hunts offer **Copy hunt summary** without payments. The broader **Copy summary** report remains available on the dashboard.
 
 By default, a gap of 30 minutes between recorded activities starts a new session. You can change this in Preferences. Sessions reflect ledger activity, so their duration can differ from your total time in the game.
 
@@ -138,7 +152,7 @@ npm run release:checksums
 
 The tests cover ledger reading, saved history, sessions, prices, goals, settings, downloads and update/save ordering. Source and packaged smoke checks use isolated sample data and hidden windows. Installer files are written to `dist/`. Windows source CI covers Node 22.12 and Node 24; the Windows installer workflow builds on Node 24 and creates a draft release for matching version tags. See [RELEASE.md](RELEASE.md) for publication and upgrade verification.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and testing guidance, [RELEASE.md](RELEASE.md) for the release checklist, and the [0.3.0 release notes](docs/releases/0.3.0.md) for changes and verification status.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and testing guidance, [RELEASE.md](RELEASE.md) for the release checklist, and the [0.3.2 release notes](docs/releases/0.3.2.md) for changes and verification status.
 
 ## Licence and data sources
 

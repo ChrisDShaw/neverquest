@@ -21,8 +21,11 @@ const integer = (value, min, max) => {
 export class Companion {
   constructor(store) {
     this.store = store; this.sourceId = null; this.reader = null; this.live = { files: 0, invalidRows: 0, problems: [] };
-    this.notifications = []; this.followStamp = null; this.discover = findCharacters;
+    this.notifications = []; this.followStamp = null;
+    this.discover = async () => this.source?.directory && path.basename(this.source.directory).toLowerCase() === 'ledger'
+      ? findCharacters(path.dirname(path.dirname(path.dirname(this.source.directory)))) : [];
     this.sessionCache = new Map();
+    this.characterActivity = null; this.activityCandidate = null; this.activityCheck = null;
     for (const reference of starterKnowledge)
       if (!this.data.knowledge.some(k => itemKey(k.item) === itemKey(reference.item))) this.data.knowledge.push({ ...reference });
   }
@@ -79,6 +82,7 @@ export class Companion {
         source.events = merged; await this.store.save();
       }
     }
+    await this.checkCharacterActivity();
     await this.tick();
     return this.snapshot();
   }
@@ -113,14 +117,45 @@ export class Companion {
     }
     if (changed) await this.store.save();
   }
+  async discoverLedgers() {
+    const found = await this.discover();
+    const known = new Set(found.map(s => path.resolve(s.directory).toLowerCase()));
+    for (const source of this.data.sources) {
+      if (!source.directory || known.has(path.resolve(source.directory).toLowerCase())) continue;
+      try { found.push({ ...source, lastActive: await latestLedgerWrite(source.directory) }); } catch { /* Preserve saved history. */ }
+    }
+    return found;
+  }
+  async checkCharacterActivity({ force = false, now = Date.now() } = {}) {
+    if (!this.reader || !this.source?.directory) { this.characterActivity = null; this.activityCandidate = null; return null; }
+    if (!force && this.activityCheck?.sourceId === this.sourceId && now - this.activityCheck.at < 10000) return this.characterActivity;
+    this.activityCheck = { sourceId: this.sourceId, at: now };
+    this.activityCandidate = null;
+    try {
+      const found = await this.discoverLedgers();
+      const directory = path.resolve(this.source.directory).toLowerCase();
+      const selected = found.find(s => path.resolve(s.directory).toLowerCase() === directory);
+      const newest = found.filter(s => Number.isFinite(s.lastActive) && s.lastActive > 0 && s.lastActive <= now + 60000)
+        .sort((a, b) => b.lastActive - a.lastActive)[0];
+      if (newest && selected && newest.lastActive > selected.lastActive
+          && newest.lastActive >= now - 15 * 60000 && path.resolve(newest.directory).toLowerCase() !== directory) {
+        this.activityCandidate = newest;
+        this.characterActivity = { state: 'different', selectedLastActive: selected.lastActive,
+          recent: { id: createHash('sha256').update(path.resolve(newest.directory).toLowerCase()).digest('hex').slice(0, 24),
+            character: newest.character, server: newest.server, lastActive: newest.lastActive } };
+      } else this.characterActivity = { state: selected ? 'selected' : 'unknown', selectedLastActive: selected?.lastActive ?? null };
+    } catch { this.characterActivity = { state: 'unknown', selectedLastActive: null }; }
+    return this.characterActivity;
+  }
+  async selectRecentCharacter(candidateId) {
+    const activity = await this.checkCharacterActivity({ force: true });
+    if (activity?.state !== 'different' || activity.recent.id !== candidateId || !this.activityCandidate)
+      throw new Error('The most recent character changed. Review the activity notice and try again.');
+    return this.connect(this.activityCandidate.directory, this.activityCandidate);
+  }
   async followLedgers() {
     try {
-      const found = await this.discover();
-      const known = new Set(found.map(s => s.directory.toLowerCase()));
-      for (const source of this.data.sources) {
-        if (!source.directory || known.has(source.directory.toLowerCase())) continue;
-        try { found.push({ ...source, lastActive: await latestLedgerWrite(source.directory) }); } catch { /* Preserve saved history. */ }
-      }
+      const found = await this.discoverLedgers();
       found.sort((a, b) => b.lastActive - a.lastActive);
       const newest = found[0];
       if (!newest) return;
@@ -135,6 +170,7 @@ export class Companion {
     const source = this.source;
     return { ...this.live, events: source?.events ?? [], character: source?.character ?? '', server: source?.server ?? '',
       directory: source?.directory ?? '', sourceId: this.sourceId,
+      characterActivity: this.characterActivity,
       revision: this.data.revision, sources: this.data.sources.map(({ events, ...s }) => ({ ...s, count: events.length })),
       sessions: this.sessions(),
       prices: priceBook(this.data.sources, source?.server),
@@ -173,6 +209,9 @@ export class Companion {
     if (!this.source) throw new Error('Choose a character first.');
     switch (command) {
       case 'session:start': {
+        const activity = await this.checkCharacterActivity({ force: true, now });
+        if (activity?.state === 'different' && payload.acknowledgeCharacterId !== activity.recent.id)
+          throw new Error(`${activity.recent.character} has newer ledger activity. Reopen Start hunt to switch characters or confirm a hunt for ${this.source.character}.`);
         if (this.data.sessions.some(s => s.sourceId === this.sourceId && s.endedAt === null)) throw new Error('End the current hunt first.');
         const startedAt = payload.startedAt === undefined ? now : integer(payload.startedAt, 0, now);
         const members = validateMembers(payload.members ?? [], this.source.character);

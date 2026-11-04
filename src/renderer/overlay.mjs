@@ -3,7 +3,7 @@ import { itemKey } from './analysis.mjs';
 import { overlayView, overlayContentKey } from './overlay-model.mjs';
 import { Requests } from './requests.mjs';
 import { createMapView } from './map-view.mjs';
-import { huntMessages, shortMoney } from './hunts.mjs';
+import { huntMessages, shortMoney, huntCopyLabel } from './hunts.mjs';
 
 const api = window.companion, kind = new URL(location.href).searchParams.get('panel');
 const $ = id => document.getElementById(id), requests = new Requests();
@@ -43,6 +43,10 @@ function render(next = snapshot) {
   if (document.activeElement !== $('background-opacity')) applySettings(snapshot.overlaySettings?.[kind] ?? { background: 100, pinned: true });
   setText('overlay-kind', kind === 'hunt' ? 'Hunt' : kind === 'session' ? 'Session' : kind === 'timers' ? 'Timers' : kind === 'map' ? 'Map' : 'Loot');
   setText('overlay-source', `${snapshot.demo ? 'Demo · ' : ''}${snapshot.character}`);
+  const recent = snapshot.characterActivity?.state === 'different' ? snapshot.characterActivity.recent : null;
+  const hideStatus = !snapshot.problems?.length && !recent;
+  if ($('overlay-status').hidden !== hideStatus) $('overlay-status').hidden = hideStatus;
+  if (!hideStatus) setText('overlay-status', recent ? `${recent.character} has newer activity. Open the companion to switch.` : 'Couldn’t read the ledger · trying again');
   const content = $('overlay-content');
   const nextKey = kind === 'map' ? null : overlayContentKey(snapshot, kind, view);
   const changed = nextKey !== contentKey;
@@ -100,9 +104,6 @@ function render(next = snapshot) {
     if (!view.lootCount) content.append(empty('No loot recorded for this session or date.', 'Open the companion for history.'));
     $('overlay-footnote').textContent = view.lootCount > view.capacity ? `Latest ${view.loot.length} of ${view.lootCount} · full history in Adventure` : view.caption;
   }
-  const hideStatus = !snapshot.problems?.length;
-  if ($('overlay-status').hidden !== hideStatus) $('overlay-status').hidden = hideStatus;
-  if (!hideStatus) setText('overlay-status', 'Couldn’t read the ledger · trying again');
   for (const notification of snapshot.notifications ?? []) {
     if (seenNotifications.has(notification.id)) continue; seenNotifications.add(notification.id);
     if (snapshot.audioTarget !== kind || !notification.soundId) continue;
@@ -171,9 +172,9 @@ function renderHunt(content, view) {
     previous.disabled = huntPage === 0; next.disabled = huntPage === pages - 1;
     paging.append(previous, node('span', '', `${huntPage + 1}/${pages}`), next); content.append(paging);
   }
-  if (!summary.unpriced || summary.running) {
+  {
     const messages = huntMessages(summary); let part = 0;
-    const title = summary.running ? 'Copy running summary' : summary.players.length > 1 ? 'Copy settlement' : 'Copy hunt summary';
+    const title = huntCopyLabel(summary);
     const label = () => `${title}${messages.length > 1 ? ` ${part + 1}/${messages.length}` : ''}`;
     const copy = button(label(), async () => {
       copy.disabled = true;
@@ -185,7 +186,7 @@ function renderHunt(content, view) {
       }
     });
     copy.classList.add('hunt-copy'); content.append(copy);
-  } else content.append(node('div', 'hunt-pricing', 'Price unpriced items in Hunt details to settle.'));
+  }
   const footnote = summary.unpriced ? 'Unpriced items: payments pending' : summary.running ? 'Live item values · payments are provisional'
     : summary.excluded ? `${summary.excluded} items excluded · coin already shared` : 'Item values only · coin already shared';
   setText('overlay-footnote', footnote);

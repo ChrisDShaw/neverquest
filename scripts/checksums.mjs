@@ -1,9 +1,12 @@
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { readdir, writeFile } from 'node:fs/promises';
+import { readFile, readdir, writeFile } from 'node:fs/promises';
 
-const files = (await readdir('dist')).filter(file => /^Neverquest-Setup-[\d.]+\.exe(?:\.blockmap)?$/.test(file) || file === 'latest.yml').sort();
-if (!files.some(file => file.endsWith('.exe'))) throw new Error('Build a Windows installer before generating checksums.');
+const { version } = JSON.parse(await readFile('package.json', 'utf8'));
+const installer = `Neverquest-Setup-${version}.exe`;
+const expected = [installer, `${installer}.blockmap`, 'latest.yml'];
+const files = (await readdir('dist')).filter(file => expected.includes(file)).sort();
+if (files.length !== expected.length) throw new Error('Build the current Windows installer and update metadata before generating checksums.');
 const lines = [];
 for (const file of files) {
   const hash = createHash('sha256');
