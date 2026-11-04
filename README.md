@@ -17,7 +17,7 @@ Installed builds check GitHub Releases shortly after launch and every four hours
 Download `SHA256SUMS.txt` from the same release as the installer. Release notes also list the SHA-256 hashes for that release’s EXE, blockmap and `latest.yml`. In the download folder, run this command with your installer’s version:
 
 ```powershell
-Get-FileHash .\Neverquest-Setup-0.3.2.exe -Algorithm SHA256
+Get-FileHash .\Neverquest-Setup-0.3.3.exe -Algorithm SHA256
 ```
 
 Compare its `Hash` with the matching filename in `SHA256SUMS.txt`; letter case does not matter. Use hashes from the same release: local and CI builds can produce different bytes, even from the same source version.
@@ -80,7 +80,9 @@ In **Adventure → Hunt history**, use **Merge with previous…** or **Split ses
 
 ### Understand your totals
 
-Item values are estimates based on vendor sales saved for characters on the same server. Neverquest divides each sale by its quantity, then uses the median price per item: the middle price, or the average of the two middle prices. Values are rounded down to whole copper. Items without a recorded vendor price stay **Unpriced**.
+Item values are estimates based on vendor sales saved for characters on the same server. When you connect a character, Neverquest also discovers and imports the other characters' ledgers under the same game-data folder, including their archives. You don't need to select each character to learn its prices. Other characters are checked every ten seconds; this keeps your selected character and hunt unchanged and doesn't trigger activity alerts for the imported history.
+
+Neverquest divides each sale by its quantity, then uses the median price per item: the middle price, or the average of the two middle prices. Values are rounded down to whole copper. Prices are kept separate by server, and player asking prices remain separate from vendor estimates. Items without a recorded vendor price stay **Unpriced**.
 
 Coin drops show the total before party splits and may include nearby players. **Who found what** separates item value, coin looted and personal shares explicitly recorded by the game. Neverquest doesn’t guess how the rest was divided.
 
@@ -126,7 +128,7 @@ Downloads tell MnMdb which map you requested. Neverquest sends no ledger records
 
 ## Your records and privacy
 
-Neverquest checks the selected character’s ledger and archive every two seconds. It saves imported history locally, so records remain available if the game later removes the original rows. It reports unreadable records and amounts, and keeps unfamiliar actions visible.
+Neverquest checks the selected character's ledger and archive every two seconds, and other discovered characters' ledgers every ten seconds. It saves imported history locally, so records remain available if the game later removes the original rows. It reports unreadable records and amounts, and keeps unfamiliar actions visible.
 
 Game files are read-only. The app reads Character and Social ledgers and their archive, plus zoning messages from `Player.log` while the map is open. It doesn’t monitor the game process, inspect game windows, read keyboard input or upload your records. Automatic character switching uses ledger file timestamps.
 
@@ -152,7 +154,7 @@ npm run release:checksums
 
 The tests cover ledger reading, saved history, sessions, prices, goals, settings, downloads and update/save ordering. Source and packaged smoke checks use isolated sample data and hidden windows. Installer files are written to `dist/`. Windows source CI covers Node 22.12 and Node 24; the Windows installer workflow builds on Node 24 and creates a draft release for matching version tags. See [RELEASE.md](RELEASE.md) for publication and upgrade verification.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and testing guidance, [RELEASE.md](RELEASE.md) for the release checklist, and the [0.3.2 release notes](docs/releases/0.3.2.md) for changes and verification status.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and testing guidance, [RELEASE.md](RELEASE.md) for the release checklist, and the [0.3.3 release notes](docs/releases/0.3.3.md) for changes and verification status.
 
 ## Licence and data sources
 

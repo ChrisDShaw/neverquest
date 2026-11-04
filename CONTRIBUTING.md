@@ -58,6 +58,8 @@ Use Character and Social ledgers and their archive for activity. While the map i
 
 The ledger reader caches unchanged files and retries incomplete writes. It removes duplicate Character/Social copies and archive overlap while preserving repeated actions within a file. Imported records stay in local history even if source rows disappear. On first use, it also migrates the folder choice from the original `preferences.json` format.
 
+Connecting a character also imports the other discovered characters' ledgers and archives under the same game-data root. Background imports run every ten seconds using cached readers, preserve saved history, and must not change the selected character, move hunts or replay alerts. Previously imported folders are also refreshed when available.
+
 Vendor prices are calculated from whole-stack sales across imported characters on the same server. Divide each sale by its quantity, round down to whole copper, and use the median unit price. Keep unknown values distinct from zero, and keep item estimates, full coin drops and recorded personal shares separate.
 
 ## Handle downloaded content safely

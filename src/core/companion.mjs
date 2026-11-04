@@ -17,6 +17,8 @@ const integer = (value, min, max) => {
   if (!Number.isSafeInteger(value) || value < min || value > max) throw new Error(`Enter a whole number from ${min} to ${max}.`);
   return value;
 };
+const directoryKey = directory => process.platform === 'win32' ? path.resolve(directory).toLowerCase() : path.resolve(directory);
+const ledgerId = directory => createHash('sha256').update(directoryKey(directory)).digest('hex').slice(0, 24);
 
 export class Companion {
   constructor(store) {
@@ -26,6 +28,7 @@ export class Companion {
       ? findCharacters(path.dirname(path.dirname(path.dirname(this.source.directory)))) : [];
     this.sessionCache = new Map();
     this.characterActivity = null; this.activityCandidate = null; this.activityCheck = null;
+    this.otherReaders = new Map(); this.otherCheck = null; this.otherProblems = [];
     for (const reference of starterKnowledge)
       if (!this.data.knowledge.some(k => itemKey(k.item) === itemKey(reference.item))) this.data.knowledge.push({ ...reference });
   }
@@ -48,7 +51,7 @@ export class Companion {
   async connect(directory, source = {}) {
     const resolved = await resolveLedgerFolder(directory);
     const characterDir = path.basename(resolved).toLowerCase() === 'ledger' ? path.dirname(resolved) : resolved;
-    const id = createHash('sha256').update(process.platform === 'win32' ? resolved.toLowerCase() : resolved).digest('hex').slice(0, 24);
+    const id = ledgerId(resolved);
     let saved = this.data.sources.find(s => s.id === id);
     if (!saved) {
       saved = { id, directory: resolved, character: source.character ?? path.basename(characterDir),
@@ -82,7 +85,8 @@ export class Companion {
         source.events = merged; await this.store.save();
       }
     }
-    await this.checkCharacterActivity();
+    const found = await this.refreshOtherCharacters();
+    await this.checkCharacterActivity({ found });
     await this.tick();
     return this.snapshot();
   }
@@ -126,13 +130,46 @@ export class Companion {
     }
     return found;
   }
-  async checkCharacterActivity({ force = false, now = Date.now() } = {}) {
+  async refreshOtherCharacters(now = Date.now()) {
+    if (!this.reader || !this.source?.directory) return;
+    if (this.otherCheck?.sourceId === this.sourceId && now - this.otherCheck.at < 10000) return;
+    this.otherCheck = { sourceId: this.sourceId, at: now };
+    this.otherProblems = [];
+    let found;
+    try { found = await this.discoverLedgers(); }
+    catch (error) { this.otherProblems.push(`Cannot discover other character ledgers: ${error.message}`); return; }
+    let changed = false;
+    const seen = new Set([directoryKey(this.source.directory)]);
+    for (const candidate of found) {
+      const key = directoryKey(candidate.directory);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      let reader = this.otherReaders.get(key);
+      if (!reader) { reader = new LedgerFolder(candidate.directory); this.otherReaders.set(key, reader); }
+      const latest = await reader.refresh();
+      this.otherProblems.push(...latest.problems.map(problem => `${candidate.character}: ${problem}`));
+      if (latest.invalidRows) this.otherProblems.push(`${candidate.character}: ${latest.invalidRows} unreadable ledger records`);
+      if (!latest.events.length) continue;
+      const id = ledgerId(candidate.directory);
+      let saved = this.data.sources.find(s => s.id === id);
+      if (!saved) {
+        saved = { id, directory: candidate.directory, character: candidate.character, server: candidate.server, events: [] };
+        this.data.sources.push(saved);
+      }
+      // Import quietly: another character's history must not trigger the selected character's alerts.
+      const merged = mergeLedgers([{ events: saved.events }, { events: latest.events }]);
+      if (JSON.stringify(saved.events) !== JSON.stringify(merged)) { saved.events = merged; changed = true; }
+    }
+    if (changed) await this.store.save();
+    return found;
+  }
+  async checkCharacterActivity({ force = false, now = Date.now(), found } = {}) {
     if (!this.reader || !this.source?.directory) { this.characterActivity = null; this.activityCandidate = null; return null; }
     if (!force && this.activityCheck?.sourceId === this.sourceId && now - this.activityCheck.at < 10000) return this.characterActivity;
     this.activityCheck = { sourceId: this.sourceId, at: now };
     this.activityCandidate = null;
     try {
-      const found = await this.discoverLedgers();
+      found ??= await this.discoverLedgers();
       const directory = path.resolve(this.source.directory).toLowerCase();
       const selected = found.find(s => path.resolve(s.directory).toLowerCase() === directory);
       const newest = found.filter(s => Number.isFinite(s.lastActive) && s.lastActive > 0 && s.lastActive <= now + 60000)
@@ -168,7 +205,8 @@ export class Companion {
   }
   snapshot() {
     const source = this.source;
-    return { ...this.live, events: source?.events ?? [], character: source?.character ?? '', server: source?.server ?? '',
+    return { ...this.live, problems: [...this.live.problems, ...this.otherProblems],
+      events: source?.events ?? [], character: source?.character ?? '', server: source?.server ?? '',
       directory: source?.directory ?? '', sourceId: this.sourceId,
       characterActivity: this.characterActivity,
       revision: this.data.revision, sources: this.data.sources.map(({ events, ...s }) => ({ ...s, count: events.length })),
